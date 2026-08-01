@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.111.0",
     "@walletconnect/sign-client": "^2.23.10",
     "cashscript": "^0.13.2",
     "react": "^18.3.1",

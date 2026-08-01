@@ -11,6 +11,8 @@ import { Card, CardHeader, ErrorNote, Loading, PageHeader } from '../components/
 import { formatPeso, formatWhen, truncateHex } from '../lib/format'
 import { useSession } from '../auth/session'
 import { useProofView } from '../view/proof-view'
+import { fileOvertime, useOvertime } from '../data/overtime-store'
+import { MAX_OVERTIME_MINUTES_PER_DAY, overtimePay } from '@domain/index'
 
 /**
  * /my/time — the employee's clock, and the moment attendance becomes a fact.
@@ -33,6 +35,10 @@ export default function TimeClockPage() {
   const [error, setError] = useState<string | null>(null)
   const [lastPunch, setLastPunch] = useState<AnchoredPunch | null>(null)
   const proofView = useProofView()
+  const { requests: overtime, reload: reloadOvertime } = useOvertime()
+  const [otMinutes, setOtMinutes] = useState('120')
+  const [otReason, setOtReason] = useState('')
+  const [otNote, setOtNote] = useState<string | null>(null)
 
   if (!state) return <Loading />
 
@@ -218,6 +224,111 @@ export default function TimeClockPage() {
           </div>
         </Card>
       ) : null}
+
+      {/*
+        Filing overtime, not claiming it. The distinction is the point: these
+        minutes are worth nothing until HR approves them, so the panel shows
+        what they WOULD be worth and says plainly that they are not yet.
+      */}
+      <Card>
+        <CardHeader
+          title="Overtime"
+          hint="Beyond the standard day. Filing does not earn it — HR has to approve the request first."
+        />
+        <div className="card-body">
+          <div className="row g-3 align-items-end">
+            <div className="col-md-3">
+              <label className="form-label fs-12 mb-1" htmlFor="ot_minutes">
+                Minutes worked beyond the day
+              </label>
+              <input
+                id="ot_minutes"
+                className="form-control"
+                type="number"
+                min={1}
+                max={MAX_OVERTIME_MINUTES_PER_DAY}
+                value={otMinutes}
+                onChange={(e) => setOtMinutes(e.target.value)}
+              />
+            </div>
+            <div className="col-md-6">
+              <label className="form-label fs-12 mb-1" htmlFor="ot_reason">
+                Reason
+              </label>
+              <input
+                id="ot_reason"
+                className="form-control"
+                value={otReason}
+                onChange={(e) => setOtReason(e.target.value)}
+                placeholder="Month-end close"
+              />
+            </div>
+            <div className="col-md-3">
+              <button
+                type="button"
+                className="btn btn-primary w-100"
+                disabled={!Number.isInteger(Number(otMinutes)) || Number(otMinutes) <= 0 || otReason.trim() === ''}
+                onClick={() => {
+                  setOtNote(null)
+                  void fileOvertime({
+                    workDate: todayKey(),
+                    minutes: Number(otMinutes),
+                    reason: otReason.trim(),
+                  }).then((result) => {
+                    setOtNote(result.ok ? 'Filed. It earns nothing until HR approves it.' : (result.error ?? 'Could not file that.'))
+                    if (result.ok) setOtReason('')
+                    reloadOvertime()
+                  })
+                }}
+              >
+                File request
+              </button>
+            </div>
+            {record !== undefined && Number(otMinutes) > 0 ? (
+              <div className="col-12">
+                <p className="fs-12 mb-0 text-muted">
+                  Worth{' '}
+                  <span className="fw-medium">
+                    {formatPeso(overtimePay(record.commitment.monthlyBasic, Number(otMinutes) || 0))}
+                  </span>{' '}
+                  at Art. 87 rates (hourly + 25%) — <em>if</em> approved.
+                </p>
+              </div>
+            ) : null}
+            {otNote ? (
+              <div className="col-12">
+                <p className="fs-12 mb-0 text-success">{otNote}</p>
+              </div>
+            ) : null}
+          </div>
+
+          {overtime.length > 0 ? (
+            <ul className="list-group list-group-flush mt-3">
+              {overtime.slice(0, 5).map((request) => (
+                <li
+                  key={request.id}
+                  className="list-group-item d-flex align-items-center justify-content-between px-0"
+                >
+                  <span className="fs-13">
+                    {request.workDate} · {request.minutes} min · {request.reason}
+                  </span>
+                  <span
+                    className={`badge badge-sm fw-normal ${
+                      request.status === 'approved'
+                        ? 'badge-soft-success'
+                        : request.status === 'rejected'
+                          ? 'badge-soft-danger'
+                          : 'badge-soft-warning'
+                    }`}
+                  >
+                    {request.status}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      </Card>
 
       <Card>
         <CardHeader

@@ -57,6 +57,14 @@ export const ESAHOD_ROUTES = [
     roles: ['hr'],
   },
   {
+    path: '/hr/overtime',
+    label: 'Overtime',
+    title: 'Overtime',
+    section: 'Human Resources',
+    icon: 'ti ti-clock-plus',
+    roles: ['hr'],
+  },
+  {
     path: '/hr/schedule',
     label: 'Pay Schedule',
     title: 'Pay Schedule',

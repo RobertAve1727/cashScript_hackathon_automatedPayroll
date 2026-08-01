@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { findUser, USERS, type Role, type User } from './users'
+import { hasSupabase, supabase, type ProfileRow } from '../data/supabase'
 
 /**
  * Who is signed in, persisted across a reload.
@@ -68,7 +69,103 @@ export function signInWithCredentials(email: string, password: string): User | n
   return signIn(user.id)
 }
 
+/**
+ * Sign in against Supabase when a backend is configured, and against the
+ * bundled fixture table when it is not.
+ *
+ * The difference is real. Through Supabase the password is verified by the
+ * server, the session is a signed JWT, and every subsequent query is filtered
+ * by row-level security keyed to that user — an employee's `select * from
+ * employees` returns exactly their own row, because the policy says so rather
+ * than because the UI asked nicely. Offline, none of that is true and the
+ * sign-in screen says so.
+ *
+ * The role comes from `profiles.role`, which the caller cannot change: an
+ * earlier version of this schema let a signed-in employee update their own
+ * profile row and make themselves HR, and a trigger now refuses that.
+ *
+ * Falls back rather than failing. A demo should not go dark because a network
+ * is unreachable, and the offline path is the one this app shipped with.
+ */
+export async function signInAsync(
+  email: string,
+  password: string,
+): Promise<{ user: User | null; backend: 'supabase' | 'offline'; error?: string }> {
+  const client = supabase()
+
+  if (!client) {
+    return { user: signInWithCredentials(email, password), backend: 'offline' }
+  }
+
+  try {
+    const { data, error } = await client.auth.signInWithPassword({
+      email: email.trim().toLowerCase(),
+      password,
+    })
+    if (error || !data.user) {
+      return {
+        user: null,
+        backend: 'supabase',
+        ...(error?.message === undefined ? {} : { error: error.message }),
+      }
+    }
+
+    const { data: profile } = await client
+      .from('profiles')
+      .select('id, role, employee_id, full_name')
+      .eq('id', data.user.id)
+      .maybeSingle<ProfileRow>()
+
+    // Map the server's answer onto the fixture the UI already knows, so the
+    // screens keep their employee numbers and blurbs. The ROLE is the
+    // server's, never the fixture's.
+    const fixture = USERS.find((entry) => entry.email.toLowerCase() === email.trim().toLowerCase())
+    const merged: User = {
+      id: fixture?.id ?? data.user.id,
+      name: profile?.full_name ?? fixture?.name ?? data.user.email ?? 'User',
+      role: mapRole(profile?.role) ?? fixture?.role ?? 'employee',
+      title: fixture?.title ?? '',
+      email: data.user.email ?? email,
+      password: '',
+      blurb: fixture?.blurb ?? '',
+      ...(fixture?.employeeNo === undefined ? {} : { employeeNo: fixture.employeeNo }),
+    }
+
+    current = merged
+    try {
+      window.localStorage.setItem(STORAGE_KEY, merged.id)
+    } catch {
+      /* not fatal */
+    }
+    emit()
+
+    return { user: merged, backend: 'supabase' }
+  } catch (thrown) {
+    return {
+      user: null,
+      backend: 'supabase',
+      error: thrown instanceof Error ? thrown.message : String(thrown),
+    }
+  }
+}
+
+function mapRole(role: ProfileRow['role'] | undefined): Role | undefined {
+  if (role === 'hr') return 'hr'
+  if (role === 'payroll_officer') return 'treasurer'
+  if (role === 'employee') return 'employee'
+  return undefined
+}
+
+/** Which backend authenticated this session, for the UI to state plainly. */
+export function authBackend(): 'supabase' | 'offline' {
+  return hasSupabase() ? 'supabase' : 'offline'
+}
+
 export function signOut(): void {
+  // Ends the server session too, not just the local one — otherwise the JWT
+  // stays valid and a later tab picks the session straight back up.
+  void supabase()?.auth.signOut()
+
   current = null
   try {
     window.localStorage.removeItem(STORAGE_KEY)

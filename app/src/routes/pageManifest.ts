@@ -28,6 +28,7 @@ const LOADERS: Readonly<Record<string, () => Promise<{ default: ComponentType }>
   '/my/payslips': () => import('../pages/EmployeePage'),
   '/hr/employees': () => import('../pages/HrPage'),
   '/hr/attendance': () => import('../pages/AttendancePage'),
+  '/hr/overtime': () => import('../pages/OvertimePage'),
   '/hr/schedule': () => import('../pages/PaySchedulePage'),
   '/treasurer': () => import('../pages/TreasurerPage'),
 }

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { signInWithCredentials } from '../auth/session'
+import { authBackend, signInAsync } from '../auth/session'
 import { DEMO_PASSWORD, ROLE_LABEL, ROLE_SHORT, USERS } from '../auth/users'
 import { homeRouteFor } from '@ui/domain/navigation/esahodNavigation'
 
@@ -26,20 +26,31 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const backend = authBackend()
 
   const submit = (event: FormEvent): void => {
     event.preventDefault()
     setError(null)
+    setBusy(true)
 
-    const user = signInWithCredentials(email, password)
-    if (!user) {
-      // Deliberately not "no such user" vs "wrong password" — the habit of
-      // not confirming which half was right is worth keeping even here.
-      setError('Those credentials do not match an account.')
-      return
-    }
-
-    navigate(homeRouteFor(user.role), { replace: true })
+    void signInAsync(email, password)
+      .then(({ user, error: detail }) => {
+        if (!user) {
+          // Deliberately not "no such user" vs "wrong password" — the habit of
+          // not confirming which half was right is worth keeping even here.
+          // The server's own message is appended only when it says something
+          // an operator needs, like the project being unreachable.
+          setError(
+            detail && !/invalid login credentials/i.test(detail)
+              ? `Sign-in failed: ${detail}`
+              : 'Those credentials do not match an account.',
+          )
+          return
+        }
+        navigate(homeRouteFor(user.role), { replace: true })
+      })
+      .finally(() => setBusy(false))
   }
 
   const fill = (userEmail: string): void => {
@@ -178,8 +189,8 @@ export default function LoginPage() {
                   </div>
 
                   <div className="mb-2">
-                    <button className="btn btn-primary w-100" type="submit">
-                      Sign In
+                    <button className="btn btn-primary w-100" type="submit" disabled={busy}>
+                      {busy ? 'Signing in…' : 'Sign In'}
                     </button>
                   </div>
 
@@ -209,9 +220,23 @@ export default function LoginPage() {
                     ))}
                   </div>
 
+                  {/*
+                    Which backend will check the password. The distinction is
+                    not cosmetic: through Supabase the server verifies it and
+                    row-level security decides what the session can read, so an
+                    employee's queries return their own row because the database
+                    says so. Offline, the check is a table in this bundle.
+                  */}
                   <p className="fs-12 text-muted text-center mt-3 mb-0">
-                    Password <code className="text-body">{DEMO_PASSWORD}</code> · chooses which
-                    pages you see, not what the chain accepts.
+                    Password <code className="text-body">{DEMO_PASSWORD}</code> ·{' '}
+                    {backend === 'supabase' ? (
+                      <>
+                        verified by Supabase, with row-level security deciding what each role can
+                        read
+                      </>
+                    ) : (
+                      <>offline demo accounts — this chooses which pages you see, nothing more</>
+                    )}
                   </p>
                 </form>
               </div>
