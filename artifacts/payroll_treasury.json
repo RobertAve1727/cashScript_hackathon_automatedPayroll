@@ -1,0 +1,81 @@
+{
+  "contractName": "PayrollTreasury",
+  "constructorInputs": [
+    {
+      "name": "operatorPk",
+      "type": "pubkey"
+    },
+    {
+      "name": "treasurerPkh",
+      "type": "bytes20"
+    },
+    {
+      "name": "payoutInterval",
+      "type": "int"
+    }
+  ],
+  "abi": [
+    {
+      "name": "disburse",
+      "inputs": [
+        {
+          "name": "operatorSig",
+          "type": "sig"
+        }
+      ]
+    },
+    {
+      "name": "reclaim",
+      "inputs": [
+        {
+          "name": "treasurerPk",
+          "type": "pubkey"
+        },
+        {
+          "name": "treasurerSig",
+          "type": "sig"
+        }
+      ]
+    }
+  ],
+  "bytecode": "OP_3 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_4 OP_ROLL OP_SWAP OP_CHECKSIGVERIFY OP_SWAP OP_CHECKSEQUENCEVERIFY OP_2DROP OP_DROP OP_1 OP_ELSE OP_3 OP_ROLL OP_1 OP_NUMEQUALVERIFY OP_3 OP_PICK OP_HASH160 OP_ROT OP_EQUALVERIFY OP_2SWAP OP_CHECKSIG OP_NIP OP_NIP OP_ENDIF",
+  "source": "pragma cashscript ^0.13.0;\n\n/**\n * PayrollTreasury\n *\n * The company funds this contract and the payroll operator settles each pay\n * period from it. Two spending paths:\n *\n *  - disburse: the operator signs a payroll run, but the coin being spent must\n *    be at least `payoutInterval` blocks old. Because each run pays itself\n *    change back into the treasury, consecutive runs are chained through that\n *    change output and are therefore rate limited by consensus, not by the\n *    client building the transaction. A leaked operator key cannot drain the\n *    treasury by replaying runs back to back.\n *\n *  - reclaim: the treasurer — a separate, colder key — can always sweep the\n *    treasury, with no timing restriction. This is the escape hatch for a lost\n *    operator key or a wound-down payroll.\n *\n * SECURITY NOTE, read before deploying with real money:\n *\n * `this.age` is a *relative* timelock (OP_CHECKSEQUENCEVERIFY) and applies per\n * UTXO, not per contract address. If the treasury is funded with five separate\n * coins, five disbursements can be made in the same block — one per coin. Fund\n * it as a single coin and let the change output carry the balance forward, and\n * the rate limit holds.\n *\n * Enforcing \"at most one payroll run per period\" for the *address* rather than\n * the coin needs a covenant: introspect `tx.outputs[n].lockingBytecode` to\n * require that the change returns to this same contract, so no run can split\n * the treasury. That is the natural next extension of this contract.\n */\ncontract PayrollTreasury(\n    pubkey operatorPk,\n    bytes20 treasurerPkh,\n    int payoutInterval\n) {\n    /**\n     * Settle a payroll run.\n     *\n     * @param operatorSig signature of the payroll operator\n     */\n    function disburse(sig operatorSig) {\n        require(checkSig(operatorSig, operatorPk), \"payroll: invalid operator signature\");\n        require(this.age >= payoutInterval, \"payroll: pay period has not elapsed\");\n    }\n\n    /**\n     * Sweep the treasury with the treasurer key. Always available.\n     *\n     * @param treasurerPk  public key matching the treasurer hash\n     * @param treasurerSig signature of the treasurer\n     */\n    function reclaim(pubkey treasurerPk, sig treasurerSig) {\n        require(hash160(treasurerPk) == treasurerPkh, \"payroll: not the treasurer\");\n        require(checkSig(treasurerSig, treasurerPk), \"payroll: invalid treasurer signature\");\n    }\n}\n",
+  "fingerprint": "1fc28e4915041400e9846e414bebefae92ee8821f34c3b40bbdafc044afbb2d8",
+  "debug": {
+    "bytecode": "5379009c63547a7cad7cb26d755167537a519d5379a97b8872ac777768",
+    "sourceMap": "43:4:46:5;;;;;44:25:44:36;;:38::48;:8::90:1;45:28:45:42:0;:8::83:1;43:39:46:5;;;:4;54::57::0;;;;55:24:55:35;;:16::36:1;:40::52:0;:8::84:1;56:25:56:50:0;:8::93:1;54:59:57:5;;33:0:58:1",
+    "logs": [],
+    "requires": [
+      {
+        "ip": 11,
+        "line": 44,
+        "message": "payroll: invalid operator signature"
+      },
+      {
+        "ip": 13,
+        "line": 45,
+        "message": "payroll: pay period has not elapsed"
+      },
+      {
+        "ip": 26,
+        "line": 55,
+        "message": "payroll: not the treasurer"
+      },
+      {
+        "ip": 29,
+        "line": 56,
+        "message": "payroll: invalid treasurer signature"
+      }
+    ],
+    "sourceTags": "26:27:sc"
+  },
+  "compiler": {
+    "name": "cashc",
+    "version": "0.13.2",
+    "options": {
+      "enforceFunctionParameterTypes": true,
+      "enforceLocktimeGuard": true
+    }
+  },
+  "updatedAt": "2026-08-01T02:43:01.311Z"
+}
