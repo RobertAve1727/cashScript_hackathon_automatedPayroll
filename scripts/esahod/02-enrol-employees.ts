@@ -12,10 +12,10 @@
  *
  * Run: npx tsx scripts/esahod/02-enrol-employees.ts
  */
-import { binToHex, hexToBin } from '@bitauth/libauth';
+import { binToHex, encodeCashAddress, hexToBin } from '@bitauth/libauth';
 import { commitmentForEmployee, commitmentToHex, encodeCommitment, FIXTURES } from '../../src/domain/index.js';
 import { buildGenesisEmploymentTransaction } from '../../src/infrastructure/blockchain/esahod/genesis.js';
-import { chipnetProvider, keyFromWif, requireEnv, toBytes20 } from './lib/config.js';
+import { chipnetProvider, keyFromWif, pkhOf, requireEnv, toBytes20 } from './lib/config.js';
 import { readDeployment } from './lib/config.js';
 
 async function main(): Promise<void> {
@@ -27,8 +27,15 @@ async function main(): Promise<void> {
   const hr = keyFromWif(requireEnv('ESAHOD_HR_WIF'));
   const provider = chipnetProvider();
 
-  const hrAddress = binToHex(hr.unlockP2PKH().generateLockingBytecode());
-  const mintingUtxo = (await provider.getUtxosForLockingBytecode(hrAddress)).find(
+  // See 01-deploy: the provider queries by locking bytecode, outputs are
+  // addressed by cashaddr, and these are not interchangeable.
+  const hrLockHex = binToHex(hr.unlockP2PKH().generateLockingBytecode());
+  const hrAddress = encodeCashAddress({
+    payload: pkhOf(hr),
+    prefix: 'bchtest',
+    type: 'p2pkh',
+  }).address;
+  const mintingUtxo = (await provider.getUtxosForLockingBytecode(hrLockHex)).find(
     (utxo) => utxo.token?.nft?.capability === 'minting' && utxo.token.category === deployment.employmentCategory,
   );
 

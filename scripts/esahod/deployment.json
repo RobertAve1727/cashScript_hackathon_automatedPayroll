@@ -1,0 +1,11 @@
+{
+  "employmentCategory": "afb8ae9d4c3b2ad2ba4e85b443469be4171291fa8b2406494a72e7fbba04b4e1",
+  "pesoCategory": "ab7c3787bf6b678829c14b8b4d20117548d5fcf819e5733b4eef0b85d2925d6d",
+  "remitConfigHash": "64df470a22c6825d8d109579b32c0957c1fbf133",
+  "genesisTime": "1779028622",
+  "periodSeconds": "1314873",
+  "lapseTime": "1817138987",
+  "treasuryAddress": "bchtest:p0862jujg95ufgvkdspeatw7nn9v35jqz50xrepd9lqu86psghg9sc4ufe08e",
+  "vaultAddress": "bchtest:pwhm3arc557kzt79kp97gnmt370r3e2yv2kqxjck8ygrrz4zhv0q5lfhw4hs8",
+  "vaultLockingBytecode": "aa20afb8f478a53d612fc5b04be44f6b8f9e38e54462ac034b163910318aa2bb1e0a87"
+}

@@ -13,7 +13,7 @@
  * dates are prompted-for via flags below — see the constants at the top.
  *   npx tsx scripts/esahod/01-deploy.ts
  */
-import { binToHex, hexToBin } from '@bitauth/libauth';
+import { binToHex, encodeCashAddress, hexToBin } from '@bitauth/libauth';
 import { utils } from 'cashscript';
 import { deployEsahod } from '../../src/infrastructure/blockchain/esahod/addresses.js';
 import { chipnetProvider, keyFromWif, pkhOf, requireEnv, toBytes20, writeDeployment } from './lib/config.js';
@@ -39,8 +39,17 @@ async function main(): Promise<void> {
   const remitConfigHash = utils.hash160(Uint8Array.from([...sssPkh, ...phicPkh, ...hdmfPkh, ...birPkh]));
 
   const provider = chipnetProvider();
-  const keeperAddress = binToHex(keeper.unlockP2PKH().generateLockingBytecode());
-  const funding = await provider.getUtxosForLockingBytecode(keeperAddress);
+  // Two different things, and conflating them is why this line used to hand
+  // cashscript a hex string where it wanted an address. The provider looks
+  // coins up BY LOCKING BYTECODE; a transaction output is addressed by
+  // CASHADDR. One value cannot be both.
+  const keeperLockHex = binToHex(keeper.unlockP2PKH().generateLockingBytecode());
+  const keeperAddress = encodeCashAddress({
+    payload: pkhOf(keeper),
+    prefix: 'bchtest',
+    type: 'p2pkh',
+  }).address;
+  const funding = await provider.getUtxosForLockingBytecode(keeperLockHex);
 
   // A CashTokens category can ONLY be created by spending a UTXO whose
   // OUTPOINT INDEX IS ZERO, and the category id is that outpoint's txid. This
