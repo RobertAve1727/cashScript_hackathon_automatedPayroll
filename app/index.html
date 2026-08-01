@@ -50,9 +50,40 @@
       <head> at all. Inline so there is no frame in which the gear flashes.
     -->
     <style>
+      /* Standalone screens: no chrome, so nothing for the customiser to customise. */
       .esahod-bare-shell .toggle-theme,
       .esahod-bare-shell .sidebar-themesettings {
         display: none !important;
+      }
+
+      /*
+        Remove the layout picker from the customiser.
+
+        It offers thirteen layouts — Horizontal, Two Column, Detached, Menu
+        Stacked, RTL and so on — and this app ships one sidebar. The other
+        twelve were dropped deliberately, because each carried the template's
+        full 283-route menu and navigated to pages that do not exist here.
+
+        Picking one sets `data-layout` on <html> AND persists it to
+        localStorage, so a visitor who clicks "Horizontal" loses the navigation
+        and a reload does not bring it back. That is a trap on a demo machine,
+        not a feature.
+
+        The rest of the panel is honest work and stays: layout width, card
+        style, sidebar colour, theme mode.
+      */
+      .sidebar-themesettings .accordion-item:has(#layoutsetting) {
+        display: none;
+      }
+
+      /* SmartHR's own upsell. Not ours to ship. */
+      .sidebar-themesettings .btn:has(.ti-shopping-cart-plus) {
+        display: none !important;
+      }
+      /* With the upsell gone, Reset takes the full row instead of half of it. */
+      .sidebar-themesettings .col-6:has(.ti-rotate-2),
+      .sidebar-themesettings .col-6:has([class*='ti-rotate']) {
+        width: 100%;
       }
     </style>
   </head>
