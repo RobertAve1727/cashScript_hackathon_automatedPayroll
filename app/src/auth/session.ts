@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { findUser, type Role, type User } from './users'
+import { findUser, USERS, type Role, type User } from './users'
 
 /**
  * Who is signed in, persisted across a reload.
@@ -43,6 +43,29 @@ export function signIn(userId: string): User | null {
   emit()
 
   return user
+}
+
+/**
+ * Sign in with an email and password.
+ *
+ * The check is real — a wrong password does not get in — but it is a check
+ * against a table in the bundle, which anyone can read. It decides which
+ * role's pages to render and nothing else. eSahod's actual guarantees do not
+ * rest on it: `paySalary` takes no signature at all, so a forged session
+ * cannot redirect a centavo, and amending a record needs HR's KEY rather than
+ * HR's account.
+ *
+ * The email match is case-insensitive and trimmed, because people type their
+ * address the way their keyboard capitalises it. The password is compared
+ * exactly, as a password should be.
+ */
+export function signInWithCredentials(email: string, password: string): User | null {
+  const candidate = email.trim().toLowerCase()
+  const user = USERS.find((entry) => entry.email.toLowerCase() === candidate)
+
+  if (!user || user.password !== password) return null
+
+  return signIn(user.id)
 }
 
 export function signOut(): void {

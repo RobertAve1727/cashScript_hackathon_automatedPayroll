@@ -15,11 +15,22 @@
 
 export type Role = 'employee' | 'hr' | 'treasurer';
 
+/**
+ * The shared demo password.
+ *
+ * One value across every account, and printed on the sign-in screen. A demo
+ * where each account has its own secret is a demo where somebody mistypes it
+ * on stage — the credential check is real, keeping it secret is not the point.
+ */
+export const DEMO_PASSWORD = 'esahod2026';
+
 export interface User {
   readonly id: string;
   readonly name: string;
   readonly role: Role;
   readonly title: string;
+  readonly email: string;
+  readonly password: string;
   /** Set for employees — links the account to its employment NFT. */
   readonly employeeNo?: number;
   /** Shown on the sign-in screen so a judge can pick a role without guessing. */
@@ -29,6 +40,8 @@ export interface User {
 export const USERS: readonly User[] = [
   {
     id: 'maria',
+    email: 'maria.santos@esahod.ph',
+    password: DEMO_PASSWORD,
     name: 'Maria Santos',
     role: 'employee',
     title: 'Systems Analyst',
@@ -37,6 +50,8 @@ export const USERS: readonly User[] = [
   },
   {
     id: 'jun',
+    email: 'jun.delacruz@esahod.ph',
+    password: DEMO_PASSWORD,
     name: 'Jun Dela Cruz',
     role: 'employee',
     title: 'Warehouse Associate',
@@ -45,6 +60,8 @@ export const USERS: readonly User[] = [
   },
   {
     id: 'rosa',
+    email: 'rosa.villanueva@esahod.ph',
+    password: DEMO_PASSWORD,
     name: 'Rosa Villanueva',
     role: 'hr',
     title: 'HR Officer',
@@ -52,6 +69,8 @@ export const USERS: readonly User[] = [
   },
   {
     id: 'ben',
+    email: 'ben.aquino@esahod.ph',
+    password: DEMO_PASSWORD,
     name: 'Ben Aquino',
     role: 'treasurer',
     title: 'Payroll Officer',
