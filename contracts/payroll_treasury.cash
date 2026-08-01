@@ -45,9 +45,18 @@ pragma cashscript ^0.13.0;
  * be deployed knowing `vaultLock`. What the covenant DOES guarantee is that
  * every record of the trusted category is paid exactly by the statutes below
  * — the mint is the only doorway, and hardening it is operational, not
- * script-level: in production the minting NFT belongs behind a multisig HR
- * key and a covenant-guarded minting path, so no single stolen key can
- * create an employment record.
+ * script-level: `src/infrastructure/blockchain/esahod/genesis.ts` mints every
+ * employment record straight into the vault and destroys the category's
+ * minting authority in the SAME transaction, so after genesis nobody — not
+ * HR, not a thief who steals HR's key — can ever mint another record of this
+ * category again. See that file's comment for why "keep the minting NFT
+ * around for future hires" (an earlier draft of this project's tooling did
+ * exactly that) reopens this hole, and `tests/infrastructure/esahod/
+ * genesis.test.ts` for the forged-mint attack shown working when the baton
+ * survives, and failing to even exist once it doesn't. If new hires must be
+ * enrollable after genesis, the correct extension is a baton held inside its
+ * own covenant that can only emit NFTs whose lockingBytecode equals the
+ * vault — never a baton returned to a plain key.
  *
  * ── PRIVATE SECTOR, NOT GOVERNMENT ────────────────────────────────────────
  * SSS (RA 11199) replaces GSIS. The difference is structural, not cosmetic:
