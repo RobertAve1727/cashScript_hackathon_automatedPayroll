@@ -63,7 +63,15 @@ export default function Sidebar() {
                     <li>
                       <ul>
                         <li className={menuClass('submenu', paths, 'subdrop')}>
-                          <a href="javascript:void(0);" className={menuClass('', paths, 'subdrop')}>
+                          {/* `javascript:void(0)` in the template; React will block that
+                              scheme in a future version. `href="#"` with the default
+                              suppressed keeps script.js's delegated click handler working
+                              and drops the warning. */}
+                          <a
+                            href="#"
+                            onClick={(event) => event.preventDefault()}
+                            className={menuClass('', paths, 'subdrop')}
+                          >
                             <i className={group.routes[0]!.icon}></i> <span>{group.section}</span>{' '}
                             <span className="menu-arrow"></span>
                           </a>

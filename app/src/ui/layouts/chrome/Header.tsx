@@ -85,7 +85,15 @@ export default function Header() {
           <div className="header-user">
             <div className="nav user-menu nav-list">
               <div className="me-auto d-flex align-items-center" id="header-search">
-                <a className="btn btn-menubar me-2" href="javascript:void(0);" id="toggle_btn">
+                {/* script.js binds the sidebar collapse by id, so the element only
+                    has to exist and carry it — see the note in Sidebar on the
+                    `javascript:` scheme. */}
+                <a
+                  className="btn btn-menubar me-2"
+                  href="#"
+                  onClick={(event) => event.preventDefault()}
+                  id="toggle_btn"
+                >
                   <i className="ti ti-arrow-bar-to-left"></i>
                 </a>{' '}
                 {/*
