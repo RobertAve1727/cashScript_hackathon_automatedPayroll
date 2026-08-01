@@ -28,7 +28,7 @@ export default function LoginPage() {
       <div className="row vh-100 align-items-center justify-content-center">
         <div className="col-xxl-8 col-xl-9 col-lg-11 py-5">
           <div className="text-center mb-4">
-            <img alt="eSahod" src="/build/img/logo.svg" className="img-fluid mb-4" style={{ maxHeight: 42 }} />
+            <img alt="eSahod" src="/build/img/eSahod_logo.svg" className="img-fluid mb-4" style={{ maxHeight: 42 }} />
             <h3 className="mb-1">Automated payroll on Bitcoin Cash</h3>
             <p className="text-muted mb-0">
               Net pay and every statutory remittance in one atomic transaction. Choose a role to

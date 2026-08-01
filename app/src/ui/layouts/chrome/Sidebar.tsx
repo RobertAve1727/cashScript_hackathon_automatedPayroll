@@ -27,13 +27,13 @@ export default function Sidebar() {
         {/* Logo */}
         <div className="sidebar-logo">
           <Link to={home} className="logo logo-normal">
-            <img alt="eSahod" src="/build/img/logo.svg" />
+            <img alt="eSahod" src="/build/img/eSahod_logo.svg" />
           </Link>{' '}
           <Link to={home} className="logo-small">
-            <img alt="eSahod" src="/build/img/logo-small.svg" />
+            <img alt="eSahod" src="/build/img/eSahod_logo_small.svg" />
           </Link>{' '}
           <Link to={home} className="dark-logo">
-            <img alt="eSahod" src="/build/img/logo-white.svg" />
+            <img alt="eSahod" src="/build/img/eSahod_logo_white.svg" />
           </Link>
         </div>
         {/* /Logo */}{' '}

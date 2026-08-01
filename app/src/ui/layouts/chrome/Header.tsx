@@ -50,10 +50,10 @@ export default function Header() {
         <div className="main-header">
           <div className="header-left">
             <Link to={homeRouteFor(user?.role ?? null)} className="logo">
-              <img alt="eSahod" src="/build/img/logo.svg" />
+              <img alt="eSahod" src="/build/img/eSahod_logo.svg" />
             </Link>{' '}
             <Link to={homeRouteFor(user?.role ?? null)} className="dark-logo">
-              <img alt="eSahod" src="/build/img/logo-white.svg" />
+              <img alt="eSahod" src="/build/img/eSahod_logo_white.svg" />
             </Link>
           </div>{' '}
           <a className="mobile_btn" href="#sidebar" id="mobile_btn">
