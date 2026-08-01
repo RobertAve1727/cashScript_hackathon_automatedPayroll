@@ -21,6 +21,7 @@ export default function HrPage() {
   const state = useChainState()
   const [lastAmend, setLastAmend] = useState<AmendResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [issued, setIssued] = useState<string | null>(null)
 
   if (!state) return <Loading />
   const { employees } = state
@@ -39,11 +40,26 @@ export default function HrPage() {
 
   return (
     <div className="content">
-      <PageHeader title="Employment Records" section="Human Resources" />
-
-      <IssueForm nextEmployeeNo={1000 + employees.length + 1} />
+      <PageHeader title="Employment Records" section="Human Resources">
+        <button
+          type="button"
+          className="btn btn-primary d-flex align-items-center"
+          data-bs-target="#issue_employment"
+          data-bs-toggle="modal"
+        >
+          <i className="ti ti-circle-plus me-2"></i>
+          Issue employment NFT
+        </button>
+      </PageHeader>
 
       <ErrorNote message={error} />
+
+      {issued ? (
+        <div className="alert alert-success d-flex align-items-center" role="alert">
+          <i className="ti ti-circle-check me-2"></i>
+          <span>{issued}</span>
+        </div>
+      ) : null}
 
       <Card>
         <CardHeader
@@ -58,6 +74,13 @@ export default function HrPage() {
       </Card>
 
       {lastAmend ? <AmendDiff result={lastAmend} /> : null}
+
+      {/*
+        The dialog lives at the end of the page rather than beside its trigger:
+        Bootstrap moves an open modal's backdrop to the end of <body>, and a
+        modal nested inside a positioned ancestor can end up rendered behind it.
+      */}
+      <IssueForm nextEmployeeNo={1000 + employees.length + 1} onIssued={setIssued} />
     </div>
   )
 }
@@ -71,14 +94,13 @@ type EncodeAttempt =
   | { readonly ok: true; readonly hex: string }
   | { readonly ok: false; readonly problem: string }
 
-function IssueForm(props: { nextEmployeeNo: number }) {
+function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) => void }) {
   const [name, setName] = useState('')
   const [position, setPosition] = useState('')
   const [basicText, setBasicText] = useState('18,000.00')
   const [allowanceText, setAllowanceText] = useState('0.00')
   const [taxText, setTaxText] = useState('0.00')
   const [endText, setEndText] = useState('24')
-  const [issued, setIssued] = useState<string | null>(null)
 
   /**
    * The payee PKH follows the wallet the employee connected on their own
@@ -138,19 +160,47 @@ function IssueForm(props: { nextEmployeeNo: number }) {
       taxPerPeriod: tax,
       endPeriod: Number(endText),
     })
-    setIssued(`${record.name} issued as employee #${record.employeeNo} — NFT minted into the vault.`)
+    props.onIssued(
+      `${record.name} issued as employee #${record.employeeNo} — NFT minted into the vault.`,
+    )
+
+    // Clear the identifying fields so reopening the dialog starts a new hire
+    // rather than re-offering the last one. The pay figures stay, because the
+    // next hire is usually on similar terms and retyping them is the tedium
+    // this screen exists to remove.
+    setName('')
+    setPosition('')
   }
 
   return (
-    <Card>
-      <CardHeader
-        title="Issue employment NFT"
-        hint="The form live-encodes the 40-byte NFT commitment — what you see beside it is byte-for-byte what the chain will carry."
-      />
-      <div className="card-body">
-        <div className="row g-4">
-          <div className="col-xl-7">
-            <div className="row g-3">
+    <div
+      aria-hidden="true"
+      aria-labelledby="issue_employment_label"
+      className="modal fade"
+      id="issue_employment"
+      role="dialog"
+      tabIndex={-1}
+    >
+      <div className="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+        <div className="modal-content">
+          <div className="modal-header">
+            <div className="me-2">
+              <h4 className="modal-title" id="issue_employment_label">
+                Issue employment NFT
+              </h4>
+              <p className="fs-12 mb-0 text-muted">
+                The form live-encodes the 40-byte NFT commitment — what you see beside it is
+                byte-for-byte what the chain will carry.
+              </p>
+            </div>
+            <button aria-label="Close" className="btn-close" data-bs-dismiss="modal" type="button">
+              <i className="ti ti-circle-x"></i>
+            </button>
+          </div>
+          <div className="modal-body">
+            <div className="row g-4">
+              <div className="col-xl-7">
+                <div className="row g-3">
               <div className="col-md-6">
                 <Field label="Full name">
                   <input
@@ -231,32 +281,43 @@ function IssueForm(props: { nextEmployeeNo: number }) {
                   </button>
                 ) : null}
               </div>
-              <div className="col-12">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={!attempt.ok}
-                  onClick={issue}
-                >
-                  <i className="ti ti-plus me-1"></i>
-                  Issue as employee #{props.nextEmployeeNo}
-                </button>
-                {issued ? <p className="fs-12 mb-0 mt-2 text-success">{issued}</p> : null}
+                </div>
+              </div>
+              <div className="col-xl-5">
+                {attempt.ok ? (
+                  <CommitmentHex hex={attempt.hex} />
+                ) : (
+                  <div className="alert alert-warning mb-0" role="alert">
+                    {attempt.problem}
+                  </div>
+                )}
               </div>
             </div>
           </div>
-          <div className="col-xl-5">
-            {attempt.ok ? (
-              <CommitmentHex hex={attempt.hex} />
-            ) : (
-              <div className="alert alert-warning mb-0" role="alert">
-                {attempt.problem}
-              </div>
-            )}
+          <div className="modal-footer">
+            <button type="button" className="btn btn-outline-light" data-bs-dismiss="modal">
+              Cancel
+            </button>
+            {/*
+              Bootstrap's own `data-bs-dismiss` closes the dialog and the click
+              handler runs alongside it. Nothing here reaches for the Modal
+              instance, so React and the plugin never contend over the backdrop
+              — the failure that leaves a page permanently dimmed and unclickable.
+            */}
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!attempt.ok}
+              data-bs-dismiss="modal"
+              onClick={issue}
+            >
+              <i className="ti ti-plus me-1"></i>
+              Issue as employee #{props.nextEmployeeNo}
+            </button>
           </div>
         </div>
       </div>
-    </Card>
+    </div>
   )
 }
 
