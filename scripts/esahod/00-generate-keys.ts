@@ -11,7 +11,7 @@
  *   officer — signs sweepLapsedNca only. Cold-ish; used once a year.
  *
  * Run: npx tsx scripts/esahod/00-generate-keys.ts
- * Then fund the keeper's address from https://tbch4.googol.cash/ (pick
+ * Then fund the keeper's address from https://tbch.googol.cash (pick
  * CHIPNET) before running 01-deploy.ts.
  */
 import { encodeCashAddress } from '@bitauth/libauth';
@@ -47,7 +47,7 @@ printKey('Keeper (fee payer — needs faucet funding)', 'ESAHOD_KEEPER_WIF');
 printKey('HR (amend + genesis minting)', 'ESAHOD_HR_WIF');
 printKey('Payroll officer (sweepLapsedNca only)', 'ESAHOD_OFFICER_WIF');
 console.log(`
-Next: fund the KEEPER address at https://tbch4.googol.cash/ (select CHIPNET).
+Next: fund the KEEPER address at https://tbch.googol.cash (select CHIPNET).
 
 Claim TWICE, as two separate faucet requests. 01-deploy needs two distinct
 funding coins that each sit at OUTPUT INDEX 0, because a CashTokens category

@@ -26,7 +26,7 @@ const utxos = await provider.getUtxos(address);
 
 if (utxos.length === 0) {
   console.log('No coins yet.');
-  console.log('Claim at https://tbch4.googol.cash (select CHIPNET), then run this again.');
+  console.log('Claim at https://tbch.googol.cash (select CHIPNET), then run this again.');
   console.log('A faucet claim usually appears within a few seconds, unconfirmed.');
   process.exit(0);
 }

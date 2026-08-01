@@ -59,7 +59,7 @@ async function main(): Promise<void> {
         'A CashTokens category is the txid of a vout-0 outpoint, so a coin sitting at vout 1 ' +
         '(a change output, typically) cannot mint anything.\n' +
         'Fix: send yourself two payments so each lands as output 0 of its own transaction — ' +
-        'claim from https://tbch4.googol.cash/ (CHIPNET) twice, or make two self-sends.',
+        'claim from https://tbch.googol.cash (CHIPNET) twice, or make two self-sends.',
     );
   }
 
