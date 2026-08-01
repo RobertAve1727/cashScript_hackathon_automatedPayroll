@@ -33,21 +33,25 @@
     <link href="/build/css/style.css" rel="stylesheet" />
 
     <!--
-      Hide the template's theme customiser.
+      Hide the template's theme customiser ON THE STANDALONE SCREENS ONLY.
 
       theme-script.js injects a floating gear (`.toggle-theme`) and an
-      off-canvas panel (`.sidebar-themesettings`) into <body>. The panel
-      switches between the horizontal, stacked and two-column sidebars — none
-      of which this app ships — so most of its controls do nothing here, and
-      the light/dark switch it does own is already in the header.
+      off-canvas panel (`.sidebar-themesettings`) straight into <body>, so
+      they float over the sign-in page too — a layout customiser on a screen
+      that has none of the layout it customises.
 
-      Hidden in CSS rather than by dropping the script: theme-script.js also
-      restores the persisted theme before first paint, which is why it loads in
-      <head> at all. Inline so there is no frame in which the gear is visible.
+      `BareLayout` adds the class while such a screen is mounted and removes it
+      on unmount, so the customiser stays available everywhere inside the app.
+      Scoped rather than global: the earlier version of this rule hid it
+      everywhere, which was more than was asked for.
+
+      In CSS rather than by dropping the script, because theme-script.js also
+      restores the persisted theme before first paint — the reason it loads in
+      <head> at all. Inline so there is no frame in which the gear flashes.
     -->
     <style>
-      .toggle-theme,
-      .sidebar-themesettings {
+      .esahod-bare-shell .toggle-theme,
+      .esahod-bare-shell .sidebar-themesettings {
         display: none !important;
       }
     </style>
