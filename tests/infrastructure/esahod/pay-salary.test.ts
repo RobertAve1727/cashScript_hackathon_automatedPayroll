@@ -81,7 +81,11 @@ describe('paySalary — real VM proof against the golden numbers', () => {
 
       const [finalTreasury] = await currentScenario.provider.getUtxos(currentScenario.deployment.treasury.address);
       expect(finalTreasury?.token?.amount).toBe(500_000_000n - 5n * 2_080_250n);
-    }, 40_000);
+      // Five sequential full-VM evaluations — ~28s on an idle machine, but
+      // several times that on a loaded one (CI, or a dev box running other
+      // work). A per-test override beats both the config and --testTimeout,
+      // so this number is the real binding constraint: keep it generous.
+    }, 180_000);
   });
 
   describe('Fixture B — Jun Dela Cruz, zero tax (7-output layout, BIR omitted)', () => {

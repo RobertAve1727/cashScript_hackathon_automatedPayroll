@@ -9,7 +9,12 @@ export default defineConfig({
     // 284-opcode covenant genuinely takes several seconds. This is a
     // characteristic of testing against the real VM rather than a stub, not
     // flakiness to paper over with more retries.
-    testTimeout: 30_000,
+    //
+    // 60s rather than 30s because these are integration tests, not unit
+    // tests: on a loaded machine (CI, or a dev box doing other work) a single
+    // evaluation can take many times its idle cost. A tight timeout here
+    // produces failures that look like logic bugs and are not.
+    testTimeout: 60_000,
     coverage: {
       include: ['src/**/*.ts'],
       // The composition root is wiring only; it is covered by the CLI tests.
