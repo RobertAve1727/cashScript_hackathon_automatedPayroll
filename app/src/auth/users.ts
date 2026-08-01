@@ -82,6 +82,13 @@ export function findUser(id: string): User | undefined {
   return USERS.find((user) => user.id === id);
 }
 
+/** Short forms, for chips and other places a full title would wrap. */
+export const ROLE_SHORT: Readonly<Record<Role, string>> = {
+  employee: 'Employee',
+  hr: 'HR',
+  treasurer: 'Payroll',
+};
+
 export const ROLE_LABEL: Readonly<Record<Role, string>> = {
   employee: 'Employee',
   hr: 'Human Resources',

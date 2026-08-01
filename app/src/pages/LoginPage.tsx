@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signInWithCredentials } from '../auth/session'
-import { DEMO_PASSWORD, ROLE_LABEL, USERS } from '../auth/users'
+import { DEMO_PASSWORD, ROLE_LABEL, ROLE_SHORT, USERS } from '../auth/users'
 import { homeRouteFor } from '@ui/domain/navigation/esahodNavigation'
 
 /**
@@ -85,10 +85,13 @@ export default function LoginPage() {
 
           <div className="col-lg-7 col-md-12 col-sm-12">
             <div className="row justify-content-center align-items-center vh-100 overflow-auto flex-wrap">
-              <div className="col-md-8 mx-auto p-4">
+              {/* Narrower than the template's col-md-7: at this width the
+                  inputs stop looking like a spreadsheet and the column has
+                  room to breathe. */}
+              <div className="col-xl-7 col-lg-9 col-md-8 mx-auto p-4">
                 <form onSubmit={submit}>
                   <div className="mx-auto mb-4 text-center">
-                    <img alt="eSahod" className="img-fluid" src="/build/img/eSahod_logo.svg" style={{ maxHeight: 36 }} />
+                    <img alt="eSahod" className="img-fluid" src="/build/img/eSahod_logo.svg" style={{ maxHeight: 34 }} />
                   </div>
 
                   <div className="text-center mb-4">
@@ -164,55 +167,41 @@ export default function LoginPage() {
                     </div>
                   </div>
 
-                  <div className="mb-4">
+                  <div className="mb-2">
                     <button className="btn btn-primary w-100" type="submit">
                       Sign In
                     </button>
                   </div>
 
-                  <div className="card mb-0 border">
-                    <div className="card-header">
-                      <h6 className="mb-1">Demo accounts</h6>
-                      <p className="fs-12 mb-0 text-muted">
-                        Every account uses the password{' '}
-                        <code className="text-body">{DEMO_PASSWORD}</code>. Use is the fastest
-                        route to each role.
-                      </p>
-                    </div>
-                    <div className="card-body p-0">
-                      <ul className="list-group list-group-flush mb-0">
-                        {USERS.map((user) => (
-                          <li
-                            key={user.id}
-                            className="list-group-item d-flex align-items-center justify-content-between flex-wrap row-gap-2"
-                          >
-                            <div className="me-2 overflow-hidden">
-                              <div className="d-flex align-items-center flex-wrap gap-2">
-                                <h6 className="fs-13 mb-0">{user.name}</h6>
-                                <span className="badge badge-soft-primary badge-sm fw-normal">
-                                  {ROLE_LABEL[user.role]}
-                                </span>
-                              </div>
-                              <p className="fs-12 mb-0 text-muted text-truncate">{user.email}</p>
-                            </div>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline-light"
-                              onClick={() => fill(user.email)}
-                            >
-                              Use
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
+                  {/*
+                    The demo accounts were a four-row card with names, badges,
+                    addresses and a button each — more vertical space than the
+                    form it was meant to serve. One wrapped row of chips does
+                    the same job: pick a role, the fields fill, and the screen
+                    still reads as a login rather than a switchboard.
+                  */}
+                  <div className="login-or">
+                    <span className="span-or">Demo accounts</span>
+                  </div>
+
+                  <div className="d-flex flex-wrap justify-content-center gap-2">
+                    {USERS.map((user) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        className="btn btn-sm btn-light border"
+                        title={`${user.email} — ${ROLE_LABEL[user.role]}`}
+                        onClick={() => fill(user.email)}
+                      >
+                        {user.name.split(' ')[0]}{' '}
+                        <span className="text-muted">· {ROLE_SHORT[user.role]}</span>
+                      </button>
+                    ))}
                   </div>
 
                   <p className="fs-12 text-muted text-center mt-3 mb-0">
-                    This sign-in decides which pages you see, not what the chain will accept.{' '}
-                    <code className="text-body">paySalary</code> takes no signature at all, so a
-                    forged session cannot redirect a centavo, and amending a record needs
-                    HR&rsquo;s key rather than HR&rsquo;s account.
+                    Password <code className="text-body">{DEMO_PASSWORD}</code> · chooses which
+                    pages you see, not what the chain accepts.
                   </p>
                 </form>
               </div>
