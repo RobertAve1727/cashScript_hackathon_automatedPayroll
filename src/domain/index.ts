@@ -37,5 +37,34 @@ export {
 
 export { PayrollCalculator } from './services/payroll-calculator.js';
 
+// eSahod — Philippine private-sector statutory payroll.
+export * from './statutory/rates.js';
+export {
+  computeDeductions,
+  employerCost,
+  monthlySalaryCredit,
+  taxableCompensation,
+  withholdingTaxSemiMonthly,
+  type DeductionInput,
+  type Deductions,
+} from './statutory/deductions.js';
+export {
+  COMMITMENT_BYTES,
+  COMMITMENT_LAYOUT,
+  EMPLOYMENT_STATUS_ACTIVE,
+  EMPLOYMENT_STATUS_INACTIVE,
+  FIXTURES,
+  FIXTURE_ANALYST,
+  FIXTURE_ENTRY_LEVEL,
+  OUTPUT_BIR,
+  OUTPUT_EMPLOYEE,
+  OUTPUT_PAGIBIG,
+  OUTPUT_PHILHEALTH,
+  OUTPUT_SSS,
+  outputLayoutFor,
+  type FixtureEmployee,
+  type OutputLayout,
+} from './payroll/types.js';
+
 export type { EmployeeRepository } from './repositories/employee-repository.js';
 export type { PayrollRunRepository } from './repositories/payroll-run-repository.js';
