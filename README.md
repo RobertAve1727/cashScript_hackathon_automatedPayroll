@@ -166,14 +166,14 @@ npm run contracts:compile   # .cash -> artifacts/*.json (already committed; this
 npm run verify               # tsc --noEmit + the test suite, all green
 cd app
 npm install
-npm run dev                  # http://localhost:5173/#/treasurer
+npm run dev                  # http://localhost:5173/treasurer
 ```
 
-Six commands. Open the printed URL and use the nav to switch between `#/treasurer` (fund a
+Six commands. Open the printed URL and use the nav to switch between `/treasurer` (fund a
 company, run payroll for either fixture employee or both, and watch the live 6/7-output
 transaction diagram render — including the ghost row explaining the omitted BIR output),
-`#/hr` (issue or amend an employment NFT and watch the 40-byte commitment hex re-encode live),
-and `#/employee` (the reconciled payslip). Every number on every screen comes from
+`/hr` (issue or amend an employment NFT and watch the 40-byte commitment hex re-encode live),
+and `/employee` (the reconciled payslip). Every number on every screen comes from
 `computeDeductions`, `outputLayoutFor` and `encodeCommitment`/`decodeCommitment` in
 `src/domain` — the exact functions the covenant and its tests are checked against, not a
 frontend transcription of them.
@@ -280,19 +280,29 @@ npm install
 npm run dev
 ```
 
-A self-contained Vite 7 + React 18 + TypeScript + Tailwind v4 app at [`app/`](app/), with
-`@domain` aliased straight into `../src/domain` so the screens run the real statutory engine —
-zero duplicated arithmetic. Three hash routes (`#/treasurer`, `#/hr`, `#/employee`) over a mock
-chain gateway ([`app/src/chain/mock-chain-gateway.ts`](app/src/chain/mock-chain-gateway.ts))
-seeded with ₱1,500,000.00 of ePHP and the two fixture employees.
+A self-contained Vite 6 + React 18 + TypeScript app at [`app/`](app/), with `@domain` aliased
+straight into `../src/domain` so the screens run the real statutory engine — zero duplicated
+arithmetic. Three routes (`/treasurer`, `/hr`, `/employee`) over a mock chain gateway
+([`app/src/chain/mock-chain-gateway.ts`](app/src/chain/mock-chain-gateway.ts)) seeded with
+₱1,500,000.00 of ePHP and the two fixture employees.
+
+**The design system.** The UI is built on SmartHR — a Bootstrap 5 HRM/payroll admin template —
+rather than on bespoke styling, so the screens look like the category of product they are. The
+template's own clean-architecture shell (theme service, navigation, and the vendor-script runtime
+that re-initialises plugin widgets after each client-side navigation) lives under
+[`app/src/ui/`](app/src/ui/) behind the `@ui` alias; its assets are in
+[`app/public/build/`](app/public/build/). Two things are deliberately *not* carried over: the
+template's 283 demo pages, and the three alternate sidebar layouts, all of which navigate to
+routes this app does not have. `@ui` is kept distinct from `@domain` on purpose — the shell is
+presentation infrastructure and knows nothing about payroll.
 
 **Wallet connect — Paytaca over WalletConnect v2.**
 [`app/src/wallet/paytaca.ts`](app/src/wallet/paytaca.ts) pairs with Paytaca on the `bch`
 namespace (`bch:bchtest`, methods `bch_getAddresses` / `bch_signTransaction` /
 `bch_signMessage`, event `addressesChanged`), calls `bch_getAddresses`, and runs the returned
 address through [`app/src/wallet/cashaddr.ts`](app/src/wallet/cashaddr.ts) to derive the 20-byte
-`payeePkh` the commitment carries. That is the whole onboarding beat: `#/employee` shows the
-decoded PKH with a copy button, and `#/hr`'s issuance form pre-fills from it until HR types over
+`payeePkh` the commitment carries. That is the whole onboarding beat: `/employee` shows the
+decoded PKH with a copy button, and `/hr`'s issuance form pre-fills from it until HR types over
 it. The two signing methods are requested for future employee-initiated spends — eSahod never
 asks a wallet to sign a payroll transaction, because `paySalary` needs no signature.
 

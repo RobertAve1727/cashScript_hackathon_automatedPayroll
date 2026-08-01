@@ -23,7 +23,8 @@
     "noEmit": true,
 
     "paths": {
-      "@domain/*": ["../src/domain/*"]
+      "@domain/*": ["../src/domain/*"],
+      "@ui/*": ["./src/ui/*"]
     }
   },
   "include": ["src", "vite.config.ts", "../src/domain"]

@@ -1,63 +1,134 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from 'react'
+import { Link } from 'react-router-dom'
 
-import { EMPLOYMENT_STATUS_ACTIVE } from '@domain/payroll/types';
-import type { EmploymentCommitment } from '@domain/payroll/commitment';
+import { EMPLOYMENT_STATUS_ACTIVE } from '@domain/payroll/types'
+import type { EmploymentCommitment } from '@domain/payroll/commitment'
 
-export function Card(props: { children: ReactNode; className?: string }) {
+/**
+ * The handful of primitives the three screens share, written in the design
+ * system's own vocabulary — `.card`, `.badge badge-soft-*`, `.alert` — rather
+ * than in bespoke classes. Nothing here invents a style: each is the markup
+ * the template already uses for the same job.
+ */
+
+export function PageHeader(props: {
+  title: string
+  section: string
+  children?: ReactNode
+}) {
   return (
-    <section
-      className={`rounded-xl border border-slate-800 bg-slate-900/70 p-5 shadow-lg shadow-black/20 ${props.className ?? ''}`}
-    >
-      {props.children}
-    </section>
-  );
+    <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
+      <div className="my-auto mb-2">
+        <h2 className="mb-1">{props.title}</h2>
+        <nav>
+          <ol className="breadcrumb mb-0">
+            <li className="breadcrumb-item">
+              <Link to="/treasurer">
+                <i className="ti ti-smart-home"></i>
+              </Link>
+            </li>
+            <li className="breadcrumb-item">{props.section}</li>
+            <li aria-current="page" className="breadcrumb-item active">
+              {props.title}
+            </li>
+          </ol>
+        </nav>
+      </div>
+      {props.children ? (
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
+          {props.children}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
-export function SectionTitle(props: { children: ReactNode; hint?: string }) {
+export function Card(props: { children: ReactNode; className?: string }) {
+  return <div className={`card ${props.className ?? ''}`.trim()}>{props.children}</div>
+}
+
+export function CardHeader(props: { title: ReactNode; hint?: string; children?: ReactNode }) {
   return (
-    <div className="mb-3">
-      <h2 className="text-sm font-semibold tracking-widest text-slate-400 uppercase">
-        {props.children}
-      </h2>
-      {props.hint ? <p className="mt-1 text-xs text-slate-500">{props.hint}</p> : null}
+    <div className="card-header d-flex align-items-center justify-content-between flex-wrap row-gap-3">
+      <div className="me-2">
+        <h5 className="mb-0">{props.title}</h5>
+        {props.hint ? <p className="fs-12 mb-0 mt-1 text-muted">{props.hint}</p> : null}
+      </div>
+      {props.children}
     </div>
-  );
+  )
 }
 
 export function StatusBadge(props: { commitment: EmploymentCommitment }) {
-  const { status, nextPeriod, endPeriod } = props.commitment;
-  const lapsed = nextPeriod > endPeriod;
+  const { status, nextPeriod, endPeriod } = props.commitment
+  const lapsed = nextPeriod > endPeriod
 
   if (status === EMPLOYMENT_STATUS_ACTIVE && !lapsed) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Active
+      <span className="badge badge-soft-success badge-sm fw-normal">
+        <i className="ti ti-circle-filled fs-5 me-1"></i>Active
       </span>
-    );
+    )
   }
   if (status === EMPLOYMENT_STATUS_ACTIVE && lapsed) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-300">
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" /> Lapsed
+      <span className="badge badge-soft-warning badge-sm fw-normal">
+        <i className="ti ti-circle-filled fs-5 me-1"></i>Lapsed
       </span>
-    );
+    )
   }
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-flag-red/15 px-2.5 py-0.5 text-xs font-medium text-red-300">
-      <span className="h-1.5 w-1.5 rounded-full bg-flag-red" /> Inactive
+    <span className="badge badge-soft-danger badge-sm fw-normal">
+      <i className="ti ti-circle-filled fs-5 me-1"></i>Inactive
     </span>
-  );
+  )
 }
 
 export function ErrorNote(props: { message: string | null }) {
-  if (!props.message) return null;
+  if (!props.message) return null
   return (
-    <div className="rounded-lg border border-flag-red/40 bg-flag-red/10 px-4 py-2.5 text-sm text-red-200">
-      {props.message}
+    <div className="alert alert-danger d-flex align-items-center mb-3" role="alert">
+      <i className="ti ti-alert-triangle me-2"></i>
+      <span>{props.message}</span>
     </div>
-  );
+  )
 }
 
 export function Loading() {
-  return <p className="p-8 text-sm text-slate-500">Loading chain state…</p>;
+  return (
+    <div className="d-flex align-items-center justify-content-center py-5 text-muted">
+      <div className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></div>
+      Loading chain state…
+    </div>
+  )
+}
+
+/**
+ * A labelled figure. Used for the treasury balance and the cut-off counters,
+ * where the template's own dashboards use the same card-body / avatar pairing.
+ */
+export function StatTile(props: {
+  label: string
+  value: ReactNode
+  sub?: ReactNode
+  icon: string
+  tone?: 'primary' | 'success' | 'warning' | 'danger' | 'info'
+}) {
+  const tone = props.tone ?? 'primary'
+  return (
+    <div className="card">
+      <div className="card-body">
+        <div className="d-flex align-items-center justify-content-between">
+          <div className="me-2 overflow-hidden">
+            <p className="fs-12 fw-medium mb-1 text-truncate">{props.label}</p>
+            <h4 className="mb-0">{props.value}</h4>
+            {props.sub ? <p className="fs-12 mb-0 mt-1 text-muted">{props.sub}</p> : null}
+          </div>
+          <div className={`avatar avatar-lg bg-${tone}-transparent rounded-circle flex-shrink-0`}>
+            <i className={`${props.icon} fs-20`}></i>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
