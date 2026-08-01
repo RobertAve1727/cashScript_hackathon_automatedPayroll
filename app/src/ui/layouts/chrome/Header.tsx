@@ -7,6 +7,7 @@ import { useAppServices } from '@ui/providers/AppServicesProvider'
 import type { ThemeMode } from '@ui/domain/theme/ThemeSettings'
 import { toggleProofView, useProofView } from '../../../view/proof-view'
 import { clear, STORAGE_KEYS } from '../../../chain/persistence'
+import { useChainMode, type ChainMode } from '../../../chain/active-gateway'
 
 /**
  * The top bar, in the SmartHR template's own markup.
@@ -26,6 +27,7 @@ export default function Header() {
   const [mode, setMode] = useState<ThemeMode>(() => theme.getSettings().theme)
   const user = useSession()
   const proofView = useProofView()
+  const chain = useChainMode()
   const navigate = useNavigate()
 
   // The service is the source of truth; theme-script.js may have restored a
@@ -86,9 +88,15 @@ export default function Header() {
                 <a className="btn btn-menubar me-2" href="javascript:void(0);" id="toggle_btn">
                   <i className="ti ti-arrow-bar-to-left"></i>
                 </a>{' '}
-                <span className="d-none d-md-inline-flex align-items-center text-muted fs-13">
-                  <i className="ti ti-circle-filled fs-8 text-success me-2"></i>
-                  Philippine private sector — SSS, PhilHealth, Pag-IBIG, BIR
+                {/*
+                  Which chain the figures came from. Stated in the chrome
+                  rather than a page, because "is this real?" is the first
+                  question anyone asks and the answer should not depend on
+                  which screen they happen to be on.
+                */}
+                <span className="d-none d-md-inline-flex align-items-center fs-13">
+                  <i className={`ti ti-circle-filled fs-8 me-2 ${chainTone(chain.kind)}`}></i>
+                  <span className="text-muted">{chainLabel(chain)}</span>
                 </span>
               </div>{' '}
               <div className="d-flex align-items-center gap-2">
@@ -162,4 +170,24 @@ export default function Header() {
       </div>
     </Fragment>
   )
+}
+
+function chainTone(kind: ChainMode['kind']): string {
+  if (kind === 'chipnet') return 'text-success'
+  if (kind === 'error') return 'text-danger'
+  if (kind === 'connecting') return 'text-warning'
+  return 'text-secondary'
+}
+
+function chainLabel(chain: ChainMode): string {
+  switch (chain.kind) {
+    case 'chipnet':
+      return 'Live on chipnet'
+    case 'connecting':
+      return 'Connecting to chipnet…'
+    case 'error':
+      return 'Chipnet unreachable — showing demo data'
+    default:
+      return 'Demo data — not connected to a network'
+  }
 }
