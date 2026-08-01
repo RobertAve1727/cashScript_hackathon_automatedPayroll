@@ -31,6 +31,26 @@
     <link href="/build/plugins/fontawesome/css/fontawesome.min.css" rel="stylesheet" />
     <link href="/build/plugins/fontawesome/css/all.min.css" rel="stylesheet" />
     <link href="/build/css/style.css" rel="stylesheet" />
+
+    <!--
+      Hide the template's theme customiser.
+
+      theme-script.js injects a floating gear (`.toggle-theme`) and an
+      off-canvas panel (`.sidebar-themesettings`) into <body>. The panel
+      switches between the horizontal, stacked and two-column sidebars — none
+      of which this app ships — so most of its controls do nothing here, and
+      the light/dark switch it does own is already in the header.
+
+      Hidden in CSS rather than by dropping the script: theme-script.js also
+      restores the persisted theme before first paint, which is why it loads in
+      <head> at all. Inline so there is no frame in which the gear is visible.
+    -->
+    <style>
+      .toggle-theme,
+      .sidebar-themesettings {
+        display: none !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>

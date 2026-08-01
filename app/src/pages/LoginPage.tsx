@@ -85,10 +85,14 @@ export default function LoginPage() {
 
           <div className="col-lg-7 col-md-12 col-sm-12">
             <div className="row justify-content-center align-items-center vh-100 overflow-auto flex-wrap">
-              {/* Narrower than the template's col-md-7: at this width the
-                  inputs stop looking like a spreadsheet and the column has
-                  room to breathe. */}
-              <div className="col-xl-7 col-lg-9 col-md-8 mx-auto p-4">
+              {/*
+                A fixed max-width rather than a grid column. Columns are a
+                fraction of whatever the viewport happens to be, so the form
+                kept growing on wide screens; an email and a password field do
+                not need more room at 1920 than at 1280. 380px is the width
+                those two inputs actually want.
+              */}
+              <div className="mx-auto p-4 w-100" style={{ maxWidth: 380 }}>
                 <form onSubmit={submit}>
                   <div className="mx-auto mb-4 text-center">
                     <img alt="eSahod" className="img-fluid" src="/build/img/eSahod_logo.svg" style={{ maxHeight: 34 }} />
