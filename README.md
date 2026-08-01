@@ -122,18 +122,32 @@ an anonymous-broadcaster attack described in [`docs/judge-answers.md`](docs/judg
 ### The trust model, stated honestly
 
 `PayrollTreasury` trusts the Employment NFT **category**, and nothing above it. Whoever holds
-that category's minting baton — HR — can mint a record naming *any* `payeePkh`, so a compromised
-HR minting key can direct funds to a forged employment record through a perfectly lawful-looking
-payroll run. That is a deliberate design boundary stated in the contract's own header comment
-(`contracts/payroll_treasury.cash`, lines 37–50), not an oversight, and it cannot be closed by
-also pinning the vault's address in the treasury: the vault has to be deployed *knowing* the
-treasury's locking bytecode, so the treasury cannot symmetrically be deployed knowing the
-vault's — the dependency is circular. What the covenant *does* guarantee is that every record of
-the trusted category is paid exactly by the statutes above; the mint is the only doorway, and
-hardening it is operational, not script-level. In production the minting NFT belongs behind a
-multisig HR key and a covenant-guarded minting path, so no single stolen key can create an
-employment record. See [`docs/judge-answers.md`](docs/judge-answers.md) for the full "compromised
-HR key" answer.
+that category's minting baton can mint a record naming *any* `payeePkh` — so a live minting baton
+is a treasury-equivalent key, able to direct funds to a forged employment record through a
+perfectly lawful-looking payroll run. This was found by an adversarial security review of this
+repo and confirmed on the VM: a forged record with the largest salary the 4-byte field holds
+drained ₱9,997,775 in a single transaction.
+
+It cannot be closed inside the covenant. The vault must be deployed *knowing* the treasury's
+locking bytecode, so the treasury cannot symmetrically be deployed knowing the vault's — the
+dependency is circular, and there is no `require()` that expresses "input 1 came from the vault".
+
+**So it is closed procedurally instead, and that fix ships here.**
+[`buildGenesisEmploymentTransaction`](src/infrastructure/blockchain/esahod/genesis.ts) mints every
+employment record straight into the vault and **never re-outputs a minting-capability NFT**.
+CashTokens minting authority cannot be recreated once a transaction spends it without reissuing
+it, so after that one transaction confirms, no record of this category can ever be minted again by
+anyone — HR included. [`tests/infrastructure/esahod/genesis.test.ts`](tests/infrastructure/esahod/genesis.test.ts)
+proves all three parts: records land in the vault, the baton is verifiably gone afterwards, and —
+the one worth reading — a `CONTRAST` case reproduces the naive "return the baton to HR for future
+hires" pattern and shows the same forged-mint attack *succeeding* against it. The exploit and its
+closure sit side by side in one file.
+
+The residual boundary, stated plainly: if new hires must be enrollable *after* genesis, the baton
+has to survive, and then this hole reopens. The correct extension is a baton held inside its own
+covenant that can only emit NFTs whose `lockingBytecode` equals the vault — never a baton returned
+to a plain key. See [`docs/judge-answers.md`](docs/judge-answers.md) for the full "compromised HR
+key" answer.
 
 ## Quick start — the mock demo
 
@@ -168,37 +182,41 @@ are real, deployable CashScript output — not mock-only stand-ins. `payroll_tre
 bytes / 284 opcodes, past the historic 520-byte push limit, so it requires the May 2025 VM-limits
 upgrade, which is active on both chipnet and mainnet.
 
-**Honesty check:** this snapshot does not yet ship numbered `scripts/00-04-*.ts` deployment
-scripts — that is the top item on the roadmap in [`docs/pitch-deck.md`](docs/pitch-deck.md). What
-follows is the exact sequence such scripts would automate, using only what this codebase already
-proves works: the compiled artifacts above, `ElectrumNetworkProvider('chipnet')` from
-`cashscript`, and the same `Contract`/`TransactionBuilder` calls exercised locally against
-`MockNetworkProvider`.
+**Honesty check:** the five scripts below are written and typecheck, but they have **not been run
+against a real chipnet server** — nobody on this build has had a funded chipnet key yet. They are
+the untested edge of this project, and [`scripts/esahod/lib/config.ts`](scripts/esahod/lib/config.ts)
+says so at the top. Everything *upstream* of them — the statutory engine, the codec, both
+covenants, the transaction builder, the attack suite — is proven against the real BCH VM. One
+piece is independently verified without a network: `00-generate-keys.ts` was actually run, and its
+WIF round-trip check passes.
 
-1. **Get chipnet tBCH.** [tbch.googol.cash](https://tbch.googol.cash/) dispenses testnet BCH and
-   has an explicit `chipnet` network option. (A CashTokens-aware chipnet wallet such as Cashonize
-   or Paytaca in testnet mode can also request from its own built-in faucet.)
-2. **Generate keys.** One each for the payroll officer, HR, the employee, and the four
-   remittance agencies. `SignatureTemplate(privKey32)` from `cashscript`, `.getPublicKey()` and
-   `utils.hash160(...)` for the corresponding `bytes20` — the same calls the domain layer's
-   tests use, just pointed at real private keys instead of deterministic fixture ones.
-3. **Mint the two token categories.** The ePHP fungible category (1 unit = 1 centavo, no NFT)
-   and the Employment NFT category (HR holds the minting baton) — both are ordinary CashTokens
-   genesis transactions from a chipnet UTXO.
-4. **Deploy `PayrollTreasury`.** Compute `remitConfigHash = hash160(sssPkh + phicPkh + hdmfPkh +
-   birPkh)`, then `new Contract(payrollTreasuryArtifact, [employmentCategory, pesoCategory,
-   remitConfigHash, genesisTime, periodSeconds, payrollOfficerPkh, lapseTime], { provider,
-   addressType: 'p2sh32' })`. `periodSeconds` is `1_314_873` (one semi-monthly period,
-   `31556952 / 24`).
-5. **Deploy `EmploymentVault`.** `treasuryLock` is the treasury contract's own P2SH32 locking
-   bytecode from step 4; `hrPkh` from step 2.
-6. **Fund and issue.** Send ePHP to the treasury's `tokenAddress`, and mint the first employment
-   NFT commitment (see the [layout](#the-40-byte-employment-commitment) above) to the vault's
-   `tokenAddress`.
-7. **Run payroll.** Once chain time clears `genesisTime + period * periodSeconds`, build the
-   `paySalary` transaction — treasury input 0, employment NFT input 1, a fee UTXO input 2+ —
-   with `builder.setLocktime(...)` at or after that threshold and every input's sequence number
-   below `0xffffffff` (`0xfffffffe`, the `TransactionBuilder` default, works). Broadcast.
+```bash
+npx tsx scripts/esahod/00-generate-keys.ts      # keeper / HR / officer WIFs + hash160s
+# fund the keeper address at https://tbch4.googol.cash/ (select CHIPNET), then:
+export ESAHOD_KEEPER_WIF=... ESAHOD_HR_WIF=... ESAHOD_OFFICER_WIF=...
+export ESAHOD_SSS_PKH=... ESAHOD_PHIC_PKH=... ESAHOD_HDMF_PKH=... ESAHOD_BIR_PKH=...
+
+npx tsx scripts/esahod/01-deploy.ts             # genesis-mint ePHP + the employment baton, derive both addresses
+npx tsx scripts/esahod/02-enrol-employees.ts    # mint records into the vault AND burn the baton
+npx tsx scripts/esahod/03-run-payroll.ts --employee-pkh <hex>
+npx tsx scripts/esahod/04-amend.ts --employee-pkh <hex> --salary 40000
+```
+
+`01-deploy.ts` runs **two** genesis transactions, not one: a CashTokens category is the txid of
+its transaction's first input, so two categories fundamentally require two distinct funding
+UTXOs — the keeper needs at least two spendable coins before this will work. It writes every
+derived value to `scripts/esahod/deployment.json`, which the later scripts read.
+
+Run `02-enrol-employees.ts` in the same sitting as `01`. Between those two commands the minting
+baton is live, and a live baton is a treasury-equivalent key (see [the trust
+model](#the-trust-model-stated-honestly)); `02` is the step that destroys it.
+
+`03-run-payroll.ts` needs **only a fee key** — not HR's, not the officer's. That is not an
+oversight in the script; it is the covenant's permissionless design showing through. The employee
+could run their own copy and get a byte-identical transaction.
+
+`payroll_treasury.cash` is 533 bytes / 284 opcodes, past the historic 520-byte push limit, so it
+requires the May 2025 VM-limits upgrade — active on both chipnet and mainnet.
 
 ## Reconciliation, to the centavo
 
@@ -282,6 +300,7 @@ clean-architecture layering PR #1 established.
 contracts/                      the two eSahod covenants + the legacy simple_bch_treasury
 artifacts/                      compiled output, committed — deployment never needs the compiler
 scripts/compile-contracts.ts    the compiler entry point (npm run contracts:compile)
+scripts/esahod/00-04            chipnet deployment lifecycle (written, not yet run on chipnet)
 
 src/domain/                     zero dependencies — the specification everything else is checked against
   statutory/rates.ts               every statutory rate and bracket, in one file, with legal citations
@@ -291,7 +310,12 @@ src/domain/                     zero dependencies — the specification everythi
   entities/, value-objects/, …     the PR #1 domain model the legacy CLI runs on
 
 src/application/                depends only on domain — use cases for the legacy CLI
-src/infrastructure/             CashScript, persistence and system adapters (legacy CLI only, today)
+src/infrastructure/blockchain/esahod/   the eSahod chain layer:
+  addresses.ts                     deploys both covenants in the required order (treasury first)
+  payroll-transaction.ts           assembles a paySalary transaction — no discretion, all amounts from the domain
+  genesis.ts                       mint-to-vault + burn-the-baton (the forgery fix)
+  p2pkh.ts                         locking bytecode from a bare 20-byte hash
+src/infrastructure/             persistence and system adapters (+ the legacy CLI's chain gateway)
 src/main/                       composition root + CLI entry point
 
 app/                             the eSahod frontend (Vite + React), outside src/ and the dependency-rule test
@@ -304,9 +328,31 @@ docs/pitch-deck.md              the pitch, one H2 per slide
 
 ```bash
 npm run typecheck   # tsc, strict
-npm test            # vitest run
+npm test            # vitest run — 315 tests
 npm run verify       # both
 ```
+
+**The covenant tests are the ones that matter.**
+[`tests/infrastructure/esahod/`](tests/infrastructure/esahod/) (22 tests) loads the *compiled*
+artifacts, builds real CashTokens transactions with `TransactionBuilder`, and lets libauth's BCH
+VM evaluate every `require()` — no stubs anywhere in that path:
+
+- **`pay-salary.test.ts`** — both fixtures pay out the golden numbers and are accepted by the VM;
+  the zero-tax layout is proven separately; five consecutive periods run back to back (the literal
+  demo choreography). Because the builder calls the *same* `computeDeductions` the covenant
+  mirrors, a one-centavo drift between TypeScript and CashScript surfaces as `send()` throwing —
+  not as a passing assertion on a hand-copied constant.
+- **`attacks.test.ts`** — 13 attacks, each a valid transaction with exactly one mutation, each
+  asserting the covenant's *own* `require()` message rather than just "it threw": redirect,
+  period-not-advanced, tampered commitment, early claim, wrong category, suspended, ended
+  employment, both halves of the BCH-strip pin, a genuine UTXO replay, an HR period rewind, a
+  forged HR signature, plus one positive control.
+- **`genesis.test.ts`** — the minting-baton fix, including a `CONTRAST` case that demonstrates the
+  forgery attack succeeding against the naive alternative.
+
+A single `send()` against a 284-opcode covenant takes several seconds of real VM evaluation, which
+is why `vitest.config.ts` sets a 30-second `testTimeout`. That is a property of testing the real
+thing rather than a stub, not flakiness.
 
 `tests/architecture/dependency-rule.test.ts` parses every import in `src/` and fails the build if
 an arrow points the wrong way: `domain` imports nothing at all, not even Node built-ins;
