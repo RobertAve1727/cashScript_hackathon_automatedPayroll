@@ -30,6 +30,15 @@ export interface DeploymentRecord {
   readonly vaultAddress?: string;
   /** Hex-encoded — needed by scripts that build outputs by raw locking bytecode. */
   readonly vaultLockingBytecode?: string;
+  /**
+   * Both contracts are addressed by hashing their constructor arguments, so
+   * anything that needs to REBUILD them — the daemon, 03-run-payroll — needs
+   * every argument, not just the resulting address. These two were the ones
+   * missing, which meant a rebuilt contract hashed to a different address than
+   * the deployed one and every spend failed for no visible reason.
+   */
+  readonly payrollOfficerPkh?: string;
+  readonly hrPkh?: string;
 }
 
 export async function readDeployment(): Promise<DeploymentRecord> {

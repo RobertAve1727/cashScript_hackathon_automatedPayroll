@@ -124,6 +124,19 @@ export {
   type PunchKind,
   type TimeRecord,
 } from './attendance/time-record.js';
+export {
+  MAX_OVERTIME_MINUTES_PER_DAY,
+  MINUTES_PER_HOUR,
+  OVERTIME_PREMIUM_PERCENT,
+  approvedOvertimeMinutes,
+  approvedOvertimePay,
+  assertRequestable,
+  decide,
+  hourlyRate,
+  overtimePay,
+  type OvertimeRequest,
+  type OvertimeStatus,
+} from './attendance/overtime.js';
 
 export type { EmployeeRepository } from './repositories/employee-repository.js';
 export type { PayrollRunRepository } from './repositories/payroll-run-repository.js';

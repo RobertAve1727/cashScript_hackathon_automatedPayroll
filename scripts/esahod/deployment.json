@@ -7,5 +7,7 @@
   "lapseTime": "1817138987",
   "treasuryAddress": "bchtest:p0862jujg95ufgvkdspeatw7nn9v35jqz50xrepd9lqu86psghg9sc4ufe08e",
   "vaultAddress": "bchtest:pwhm3arc557kzt79kp97gnmt370r3e2yv2kqxjck8ygrrz4zhv0q5lfhw4hs8",
-  "vaultLockingBytecode": "aa20afb8f478a53d612fc5b04be44f6b8f9e38e54462ac034b163910318aa2bb1e0a87"
+  "vaultLockingBytecode": "aa20afb8f478a53d612fc5b04be44f6b8f9e38e54462ac034b163910318aa2bb1e0a87",
+  "payrollOfficerPkh": "20c494fb2839c9fbfb422667283cc982cff2870d",
+  "hrPkh": "4b28d3abb5e378ac57e1f1dab34202fc7d457e82"
 }

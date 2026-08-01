@@ -161,6 +161,8 @@ async function main(): Promise<void> {
     lapseTime: lapseTime.toString(),
     treasuryAddress: deployment.treasury.address,
     vaultAddress: deployment.vault.address,
+    payrollOfficerPkh: binToHex(pkhOf(officer)),
+    hrPkh: binToHex(pkhOf(hr)),
     vaultLockingBytecode: deployment.vault.lockingBytecode,
   });
 
