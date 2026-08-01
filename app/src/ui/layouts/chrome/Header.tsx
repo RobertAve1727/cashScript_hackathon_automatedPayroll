@@ -6,6 +6,7 @@ import { homeRouteFor, LOGIN_ROUTE } from '@ui/domain/navigation/esahodNavigatio
 import { useAppServices } from '@ui/providers/AppServicesProvider'
 import type { ThemeMode } from '@ui/domain/theme/ThemeSettings'
 import { toggleProofView, useProofView } from '../../../view/proof-view'
+import { clear, STORAGE_KEYS } from '../../../chain/persistence'
 
 /**
  * The top bar, in the SmartHR template's own markup.
@@ -42,6 +43,24 @@ export default function Header() {
   const leave = (): void => {
     signOut()
     navigate(LOGIN_ROUTE, { replace: true })
+  }
+
+  /**
+   * Back to the seeded fixtures.
+   *
+   * Reloads rather than reseeding in place: both gateways are module-level
+   * singletons built once at import, so clearing storage without a reload
+   * would leave the old objects in memory and the screens unchanged — the
+   * button would appear to do nothing until the next refresh.
+   */
+  const reset = (): void => {
+    const ok = window.confirm(
+      'Reset the demo?\n\nThis clears every payroll run, amendment and attendance record, and puts the treasury and both employees back to their starting state.',
+    )
+    if (!ok) return
+
+    clear([STORAGE_KEYS.chain, STORAGE_KEYS.attendance])
+    window.location.reload()
   }
 
   return (
@@ -114,6 +133,14 @@ export default function Header() {
                 </button>
                 {user ? (
                   <Fragment>
+                    <button
+                      type="button"
+                      className="btn btn-menubar"
+                      onClick={reset}
+                      title="Reset the demo to its starting state"
+                    >
+                      <i className="ti ti-refresh"></i>
+                    </button>
                     <span className="d-none d-sm-block text-end lh-sm">
                       <span className="d-block fw-medium fs-13">{user.name}</span>
                       <span className="d-block fs-11 text-muted">{ROLE_LABEL[user.role]}</span>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { encodePunch, workedBasisPoints, type Punch, type TimeRecord } from '@domain/attendance/time-record'
 import { bytesToHex } from '../lib/format'
+import { load, save, STORAGE_KEYS } from './persistence'
 
 /**
  * Attendance, in memory, with each punch carrying the exact bytes it would be
@@ -47,6 +48,14 @@ class InMemoryAttendanceGateway implements AttendanceGateway {
   private readonly days = new Map<string, AttendanceDay>()
   private readonly listeners = new Set<() => void>()
   private nonce = 0
+
+  constructor() {
+    // A Map does not survive JSON, so it is stored as entries and rebuilt.
+    const restored = load<[string, AttendanceDay][]>(STORAGE_KEYS.attendance)
+    if (restored) {
+      for (const [key, day] of restored) this.days.set(key, day)
+    }
+  }
 
   punch(employeeNo: number, kind: Punch['kind']): AnchoredPunch {
     const at = Math.floor(Date.now() / 1000)
@@ -100,6 +109,12 @@ class InMemoryAttendanceGateway implements AttendanceGateway {
   }
 
   private emit(): void {
+    // Attendance is the one thing an employee cannot re-enter — a punch is a
+    // claim about a moment that has passed. Losing it to a refresh would make
+    // the demo's central promise, that the record cannot quietly change, look
+    // like exactly the opposite.
+    save(STORAGE_KEYS.attendance, [...this.days.entries()])
+
     for (const listener of this.listeners) listener()
   }
 

@@ -24,6 +24,7 @@ import type {
   TxOutput,
 } from './gateway';
 import { bytesToHex, formatPeso } from '../lib/format';
+import { load, save, STORAGE_KEYS } from './persistence';
 
 /**
  * The in-memory chain. Same category, same commitment bytes, same output
@@ -41,6 +42,13 @@ interface EmployeeState {
   history: PayrollRun[];
 }
 
+/** Everything that has to survive a reload, in one shape. */
+interface PersistedChain {
+  treasuryBalance: bigint;
+  runCount: number;
+  employees: EmployeeState[];
+}
+
 const TREASURY_SEED = 150_000_000n; // ₱1,500,000.00 of ePHP funding
 const TOKEN_CATEGORY = 'e5a40dc0ffee0000000000000000000000000000000000000000000000000001';
 const TREASURY_ADDRESS = 'bchtest:pz0esahod0treasury…covenant';
@@ -52,6 +60,18 @@ export class MockChainGateway implements ChainGateway {
   private listeners = new Set<() => void>();
 
   constructor() {
+    // Reload restores the demo where it was left: the treasury drawn down,
+    // period counters advanced, payslip history intact. Without this a stray
+    // refresh mid-demo silently rewinds every employee to period 1 and
+    // refills the treasury, which looks like the payroll never happened.
+    const restored = load<PersistedChain>(STORAGE_KEYS.chain);
+    if (restored) {
+      this.treasuryBalance = restored.treasuryBalance;
+      this.runCount = restored.runCount;
+      this.employees = restored.employees;
+      return;
+    }
+
     for (const fixture of FIXTURES) {
       const record: EmploymentCommitment = {
         payeePkh: commitmentFromHex(mockPayeePkhHex(fixture.employeeNo)),
@@ -311,7 +331,18 @@ export class MockChainGateway implements ChainGateway {
     return found;
   }
 
+  /**
+   * Every mutating path ends here, so persistence hangs off the same call
+   * that tells the screens to re-render. A save the UI does not know about,
+   * or a re-render that is not saved, would be a state the two disagree on.
+   */
   private notify(): void {
+    save(STORAGE_KEYS.chain, {
+      treasuryBalance: this.treasuryBalance,
+      runCount: this.runCount,
+      employees: this.employees,
+    } satisfies PersistedChain);
+
     for (const listener of this.listeners) listener();
   }
 }
