@@ -2,9 +2,9 @@ import { hexToBin } from '@bitauth/libauth';
 import { Contract, SignatureTemplate, utils, type NetworkProvider } from 'cashscript';
 import { ConfigurationError } from '../config/configuration.error.js';
 import { ChainMode, type PayrollConfiguration } from '../config/payroll-configuration.js';
-import { loadPayrollTreasuryArtifact, type PayrollTreasuryArtifact } from './payroll-treasury-artifact.js';
+import { loadSimpleBchTreasuryArtifact, type SimpleBchTreasuryArtifact } from './simple-bch-treasury-artifact.js';
 
-export type PayrollTreasuryContract = Contract<PayrollTreasuryArtifact>;
+export type PayrollTreasuryContract = Contract<SimpleBchTreasuryArtifact>;
 
 export interface TreasuryKeys {
   /** Signs payroll runs. Hot — it is used on every settlement. */
@@ -58,9 +58,9 @@ export function createPayrollTreasuryContract(
   config: PayrollConfiguration,
   provider: NetworkProvider,
   keys: TreasuryKeys,
-  artifact: PayrollTreasuryArtifact = loadPayrollTreasuryArtifact(),
+  artifact: SimpleBchTreasuryArtifact = loadSimpleBchTreasuryArtifact(),
 ): PayrollTreasuryContract {
-  return new Contract<PayrollTreasuryArtifact>(
+  return new Contract<SimpleBchTreasuryArtifact>(
     artifact,
     [keys.operator.getPublicKey(), keys.treasurerPublicKeyHash, BigInt(config.payoutIntervalBlocks)],
     { provider },

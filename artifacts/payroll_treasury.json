@@ -2,72 +2,250 @@
   "contractName": "PayrollTreasury",
   "constructorInputs": [
     {
-      "name": "operatorPk",
-      "type": "pubkey"
+      "name": "employmentCategory",
+      "type": "bytes32"
     },
     {
-      "name": "treasurerPkh",
+      "name": "pesoCategory",
+      "type": "bytes32"
+    },
+    {
+      "name": "remitConfigHash",
       "type": "bytes20"
     },
     {
-      "name": "payoutInterval",
+      "name": "genesisTime",
+      "type": "int"
+    },
+    {
+      "name": "periodSeconds",
+      "type": "int"
+    },
+    {
+      "name": "payrollOfficerPkh",
+      "type": "bytes20"
+    },
+    {
+      "name": "lapseTime",
       "type": "int"
     }
   ],
   "abi": [
     {
-      "name": "disburse",
+      "name": "paySalary",
       "inputs": [
         {
-          "name": "operatorSig",
-          "type": "sig"
+          "name": "sssPkh",
+          "type": "bytes20"
+        },
+        {
+          "name": "phicPkh",
+          "type": "bytes20"
+        },
+        {
+          "name": "hdmfPkh",
+          "type": "bytes20"
+        },
+        {
+          "name": "birPkh",
+          "type": "bytes20"
         }
       ]
     },
     {
-      "name": "reclaim",
+      "name": "sweepLapsedNca",
       "inputs": [
         {
-          "name": "treasurerPk",
-          "type": "pubkey"
+          "name": "officerSig",
+          "type": "sig"
         },
         {
-          "name": "treasurerSig",
-          "type": "sig"
+          "name": "officerPk",
+          "type": "pubkey"
         }
       ]
     }
   ],
-  "bytecode": "OP_3 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_4 OP_ROLL OP_SWAP OP_CHECKSIGVERIFY OP_SWAP OP_CHECKSEQUENCEVERIFY OP_2DROP OP_DROP OP_1 OP_ELSE OP_3 OP_ROLL OP_1 OP_NUMEQUALVERIFY OP_3 OP_PICK OP_HASH160 OP_ROT OP_EQUALVERIFY OP_2SWAP OP_CHECKSIG OP_NIP OP_NIP OP_ENDIF",
-  "source": "pragma cashscript ^0.13.0;\n\n/**\n * PayrollTreasury\n *\n * The company funds this contract and the payroll operator settles each pay\n * period from it. Two spending paths:\n *\n *  - disburse: the operator signs a payroll run, but the coin being spent must\n *    be at least `payoutInterval` blocks old. Because each run pays itself\n *    change back into the treasury, consecutive runs are chained through that\n *    change output and are therefore rate limited by consensus, not by the\n *    client building the transaction. A leaked operator key cannot drain the\n *    treasury by replaying runs back to back.\n *\n *  - reclaim: the treasurer — a separate, colder key — can always sweep the\n *    treasury, with no timing restriction. This is the escape hatch for a lost\n *    operator key or a wound-down payroll.\n *\n * SECURITY NOTE, read before deploying with real money:\n *\n * `this.age` is a *relative* timelock (OP_CHECKSEQUENCEVERIFY) and applies per\n * UTXO, not per contract address. If the treasury is funded with five separate\n * coins, five disbursements can be made in the same block — one per coin. Fund\n * it as a single coin and let the change output carry the balance forward, and\n * the rate limit holds.\n *\n * Enforcing \"at most one payroll run per period\" for the *address* rather than\n * the coin needs a covenant: introspect `tx.outputs[n].lockingBytecode` to\n * require that the change returns to this same contract, so no run can split\n * the treasury. That is the natural next extension of this contract.\n */\ncontract PayrollTreasury(\n    pubkey operatorPk,\n    bytes20 treasurerPkh,\n    int payoutInterval\n) {\n    /**\n     * Settle a payroll run.\n     *\n     * @param operatorSig signature of the payroll operator\n     */\n    function disburse(sig operatorSig) {\n        require(checkSig(operatorSig, operatorPk), \"payroll: invalid operator signature\");\n        require(this.age >= payoutInterval, \"payroll: pay period has not elapsed\");\n    }\n\n    /**\n     * Sweep the treasury with the treasurer key. Always available.\n     *\n     * @param treasurerPk  public key matching the treasurer hash\n     * @param treasurerSig signature of the treasurer\n     */\n    function reclaim(pubkey treasurerPk, sig treasurerSig) {\n        require(hash160(treasurerPk) == treasurerPkh, \"payroll: not the treasurer\");\n        require(checkSig(treasurerSig, treasurerPk), \"payroll: invalid treasurer signature\");\n    }\n}\n",
-  "fingerprint": "1fc28e4915041400e9846e414bebefae92ee8821f34c3b40bbdafc044afbb2d8",
+  "bytecode": "OP_7 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_8 OP_ROLL OP_SIZE 14 OP_EQUALVERIFY OP_9 OP_ROLL OP_SIZE 14 OP_EQUALVERIFY OP_10 OP_ROLL OP_SIZE 14 OP_EQUALVERIFY OP_11 OP_ROLL OP_SIZE 14 OP_EQUALVERIFY OP_INPUTINDEX OP_0 OP_NUMEQUALVERIFY OP_1 OP_UTXOTOKENCATEGORY OP_5 OP_ROLL OP_1 OP_CAT OP_EQUALVERIFY OP_2OVER OP_CAT OP_2 OP_PICK OP_CAT OP_OVER OP_CAT OP_HASH160 OP_6 OP_ROLL OP_EQUALVERIFY OP_1 OP_UTXOTOKENCOMMITMENT 14 OP_SPLIT OP_4 OP_SPLIT OP_4 OP_SPLIT OP_4 OP_SPLIT OP_2 OP_SPLIT OP_2 OP_SPLIT OP_1 OP_SPLIT OP_6 OP_PICK OP_BIN2NUM OP_6 OP_PICK OP_BIN2NUM OP_6 OP_PICK OP_BIN2NUM OP_6 OP_ROLL OP_BIN2NUM OP_5 OP_PICK OP_BIN2NUM OP_1 OP_NUMEQUALVERIFY OP_DUP OP_7 OP_PICK OP_BIN2NUM OP_LESSTHANOREQUAL OP_VERIFY OP_16 OP_ROLL OP_OVER 12 OP_ROLL OP_MUL OP_ADD OP_CHECKLOCKTIMEVERIFY OP_DROP OP_3 OP_PICK OP_3 OP_ROLL OP_ADD OP_DUP a861 OP_ADD 50c300 OP_DIV 50c300 OP_MUL OP_DUP 20a107 OP_LESSTHAN OP_IF 20a107 OP_NIP OP_ENDIF OP_DUP e06735 OP_GREATERTHAN OP_IF e06735 OP_NIP OP_ENDIF OP_DUP OP_5 OP_MUL c800 OP_DIV OP_OVER OP_10 OP_MUL c800 OP_DIV f401 OP_3 OP_ROLL 60e316 OP_GREATERTHANOREQUAL OP_IF dc05 OP_NIP OP_ENDIF OP_2 OP_PICK OP_ROT OP_ADD OP_ADD OP_5 OP_ROLL OP_DUP 40420f OP_LESSTHAN OP_IF 40420f OP_NIP OP_ENDIF OP_DUP 80969800 OP_GREATERTHAN OP_IF 80969800 OP_NIP OP_ENDIF 32 OP_MUL a00f OP_DIV OP_DUP OP_2 OP_MUL OP_4 OP_PICK OP_DUP 40420f OP_GREATERTHAN OP_IF 40420f OP_NIP OP_ENDIF OP_2 OP_6 OP_PICK f04902 OP_LESSTHANOREQUAL OP_IF OP_DROP OP_1 OP_ENDIF OP_OVER OP_SWAP OP_MUL c800 OP_DIV OP_SWAP OP_2 OP_MUL c800 OP_DIV OP_OVER OP_ADD OP_6 OP_ROLL OP_2 OP_DIV OP_6 OP_ROLL OP_SUB OP_4 OP_ROLL OP_SUB OP_ROT OP_SUB OP_5 OP_PICK OP_SUB OP_DUP OP_0 OP_GREATERTHAN OP_VERIFY OP_0 OP_OUTPUTBYTECODE 76a914 OP_14 OP_PICK OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_0 OP_OUTPUTTOKENCATEGORY 12 OP_PICK OP_EQUALVERIFY OP_0 OP_OUTPUTTOKENAMOUNT OP_OVER OP_NUMEQUALVERIFY OP_1 OP_OUTPUTBYTECODE 76a914 12 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_1 OP_OUTPUTTOKENCATEGORY 11 OP_PICK OP_EQUALVERIFY OP_1 OP_OUTPUTTOKENAMOUNT OP_4 OP_PICK OP_NUMEQUALVERIFY OP_2 OP_OUTPUTBYTECODE 76a914 11 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_2 OP_OUTPUTTOKENCATEGORY OP_16 OP_PICK OP_EQUALVERIFY OP_2 OP_OUTPUTTOKENAMOUNT OP_3 OP_PICK OP_NUMEQUALVERIFY OP_3 OP_OUTPUTBYTECODE 76a914 OP_16 OP_ROLL OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_3 OP_OUTPUTTOKENCATEGORY OP_15 OP_PICK OP_EQUALVERIFY OP_3 OP_OUTPUTTOKENAMOUNT OP_2 OP_PICK OP_NUMEQUALVERIFY OP_5 OP_6 OP_7 OP_PICK OP_0 OP_GREATERTHAN OP_IF OP_4 OP_OUTPUTBYTECODE 76a914 11 OP_PICK OP_CAT 88ac OP_CAT OP_EQUALVERIFY OP_4 OP_OUTPUTTOKENCATEGORY 11 OP_PICK OP_EQUALVERIFY OP_4 OP_OUTPUTTOKENAMOUNT OP_8 OP_PICK OP_NUMEQUALVERIFY OP_ELSE OP_4 OP_ROT OP_DROP OP_NIP OP_5 OP_ENDIF OP_OVER OP_OUTPUTBYTECODE OP_1 OP_UTXOBYTECODE OP_EQUALVERIFY OP_OVER OP_OUTPUTTOKENCATEGORY OP_1 OP_UTXOTOKENCATEGORY OP_EQUALVERIFY OP_OVER OP_OUTPUTTOKENCOMMITMENT OP_15 OP_ROLL OP_15 OP_ROLL OP_CAT OP_14 OP_ROLL OP_CAT OP_13 OP_ROLL OP_CAT OP_8 OP_ROLL OP_1ADD OP_2 OP_NUM2BIN OP_CAT OP_11 OP_ROLL OP_CAT OP_10 OP_ROLL OP_CAT OP_9 OP_ROLL OP_CAT OP_EQUALVERIFY OP_SWAP OP_OUTPUTVALUE OP_1 OP_UTXOVALUE OP_GREATERTHANOREQUAL OP_VERIFY OP_DUP OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_DUP OP_OUTPUTTOKENCATEGORY OP_8 OP_ROLL OP_EQUALVERIFY OP_DUP OP_OUTPUTTOKENAMOUNT OP_0 OP_UTXOTOKENAMOUNT OP_3 OP_ROLL OP_SUB OP_5 OP_ROLL OP_SUB OP_4 OP_ROLL OP_SUB OP_3 OP_ROLL OP_SUB OP_3 OP_ROLL OP_SUB OP_NUMEQUALVERIFY OP_OUTPUTVALUE OP_0 OP_UTXOVALUE OP_GREATERTHANOREQUAL OP_VERIFY OP_2DROP OP_2DROP OP_1 OP_ELSE OP_7 OP_ROLL OP_1 OP_NUMEQUALVERIFY OP_8 OP_PICK OP_HASH160 OP_6 OP_ROLL OP_EQUALVERIFY OP_6 OP_ROLL OP_7 OP_ROLL OP_CHECKSIGVERIFY OP_5 OP_ROLL OP_CHECKLOCKTIMEVERIFY OP_DROP OP_TXINPUTCOUNT OP_1 OP_NUMEQUALVERIFY OP_2DROP OP_2DROP OP_DROP OP_1 OP_ENDIF",
+  "source": "pragma cashscript ^0.13.0;\n\n/**\n * eSahod — PayrollTreasury  (PRIVATE SECTOR)\n * ═══════════════════════════════════════════════════════════════════════════\n *\n * One company's payroll funding, held on chain for one funding cycle.\n *\n * The contract holds ePHP fungible CashTokens (1 unit = 1 centavo) and will\n * release them in exactly one shape: a lawful semi-monthly payroll\n * disbursement for one employee.\n *\n *   net pay     -> the employee named inside the Employment NFT commitment\n *   SSS         -> 15% of the bracketed Monthly Salary Credit, / 2, + EC premium\n *   PhilHealth  ->  5% of basic salary, / 2   (floor P10,000, ceiling P100,000)\n *   Pag-IBIG    ->  4% of capped compensation, / 2   (MFS cap P10,000)\n *   BIR         -> the withholding tax HR stored in the NFT\n *\n * WHY THIS EXISTS AT ALL. In a normal payroll the deduction and the remittance\n * are two different events months apart: money is withheld from the worker in\n * January and reaches SSS in April, if it reaches SSS at all. Non-remittance of\n * withheld contributions is the single most common wage complaint in the\n * Philippines, and it is invisible to the worker until they file a claim.\n * Here they are the SAME EVENT — one transaction, atomic. If the employee is\n * paid, the funds have already moved. There is no window in which an employer\n * holds withheld money.\n *\n * WHO CAN RUN IT: anybody. `paySalary` requires NO signature. The employee, the\n * payroll officer, or an anonymous keeper bot can broadcast it and the result\n * is byte-for-byte identical, because every recipient and every amount is\n * derived from the Employment NFT and the statutory formulas below. Nobody —\n * not the officer, not HR, not the developers — can redirect one centavo.\n * That is what makes it safe to give the trigger away, and giving the trigger\n * away is what makes the payroll unstoppable: an employer cannot withhold pay\n * by simply not pressing the button.\n *\n * ── THE TRUST ROOT, STATED HONESTLY ───────────────────────────────────────\n * This covenant trusts the Employment NFT CATEGORY, and nothing above it.\n * Whoever holds the category's minting NFT — HR — can mint a record carrying\n * ANY payeePkh, so a compromised HR minting key can direct funds to a forged\n * employment record through a perfectly lawful-looking payroll run. That is\n * the deliberate design boundary, not an oversight. It cannot be closed by\n * also pinning the vault's address here, because the dependency is circular:\n * the vault must be deployed knowing `treasuryLock`, so the treasury cannot\n * be deployed knowing `vaultLock`. What the covenant DOES guarantee is that\n * every record of the trusted category is paid exactly by the statutes below\n * — the mint is the only doorway, and hardening it is operational, not\n * script-level: in production the minting NFT belongs behind a multisig HR\n * key and a covenant-guarded minting path, so no single stolen key can\n * create an employment record.\n *\n * ── PRIVATE SECTOR, NOT GOVERNMENT ────────────────────────────────────────\n * SSS (RA 11199) replaces GSIS. The difference is structural, not cosmetic:\n * GSIS is a flat percentage of actual compensation with no ceiling, while SSS\n * is computed on a BRACKETED Monthly Salary Credit in P500 steps, floored at\n * P5,000 and capped at P35,000, plus a flat employer-only EC premium. Two\n * employees earning P16,100 and P16,300 contribute the same amount. That\n * bracket step is reproduced below in the same expression form as\n * `src/domain/statutory/deductions.ts`, because the off-chain calculator and\n * this covenant must agree to the centavo or the transaction is rejected.\n *\n * Statutory basis:\n *   SSS         RA 11199   15% of MSC (5% EE / 10% ER), MSC P5,000–P35,000,\n *                          EC premium P10/month, P30/month at MSC >= P15,000\n *   PhilHealth  RA 11223   5% of basic, split evenly, floor P10,000, ceiling P100,000\n *   Pag-IBIG    RA 9679    2% EE (1% at or below P1,500) + 2% ER, MFS cap P10,000\n *   BIR         RA 10963   withholding computed off chain by HR — see below\n *\n * WHERE THE CHAIN STOPS. This covenant does NOT compute withholding tax, and\n * that is deliberate. Real withholding is annualised, depends on substituted\n * filing, year-to-date compensation and the taxability of individual\n * allowances, and minimum-wage earners are exempt outright under RA 9504.\n * None of that is verifiable from a 40-byte commitment. HR computes the number\n * and writes it into the employment record; the chain enforces that EXACT\n * number reaches EXACTLY the BIR address. Enforce what is verifiable, refuse\n * to pretend about the rest.\n *\n * ── NOTES FOR THE TRANSACTION BUILDER ─────────────────────────────────────\n * 1. `tx.time` compiles to OP_CHECKLOCKTIMEVERIFY, which BCH consensus only\n *    enforces when the spending input carries a non-final sequence number. The\n *    builder must set nLockTime AND a sequence number below 0xffffffff, or the\n *    payday floor is not enforced at all.\n * 2. This script is 533 bytes and 284 opcodes. It therefore requires the May\n *    2025 VM-limits upgrade, which replaced the old 201-opcode ceiling and the\n *    520-byte stack-item cap with density-based limits (items up to 10,000\n *    bytes). The two satoshi-floor checks are what pushed it past the historic\n *    520-byte push limit; keeping the treasury's BCH un-strippable is worth\n *    more than staying quaint under a rule the network no longer enforces.\n */\ncontract PayrollTreasury(\n    bytes32 employmentCategory,  // CashToken category of this company's Employment NFTs — the trust root\n    bytes32 pesoCategory,        // CashToken category of ePHP (1 unit = 1 centavo)\n    bytes20 remitConfigHash,     // hash160(sssPkh + phicPkh + hdmfPkh + birPkh)\n    int     genesisTime,         // unix seconds: earliest claimable moment of period 0\n    int     periodSeconds,       // 1314873 = one semi-monthly period (31556952 / 24)\n    bytes20 payrollOfficerPkh,   // company payroll officer / treasurer (make this a multisig in production)\n    int     lapseTime            // unix seconds: this funding cycle ends\n) {\n    /**\n     * Pay one employee for one semi-monthly period. Permissionless.\n     *\n     * The four remittance hashes are passed as arguments and checked against a\n     * single stored hash160. Storing one hash instead of four addresses keeps\n     * the contract parameters small while still letting the company publish its\n     * remittance configuration and let anyone verify it — and it means changing\n     * a remittance address changes the treasury address, which is exactly the\n     * blast radius you want for a change of that severity.\n     *\n     * Required transaction shape when tax > 0:\n     *   in  0  this treasury             out 0  net pay -> employee\n     *   in  1  Employment NFT (mutable)  out 1  SSS\n     *   in  2+ fee UTXOs (optional)      out 2  PhilHealth\n     *                                    out 3  Pag-IBIG\n     *                                    out 4  BIR\n     *                                    out 5  Employment NFT, period + 1\n     *                                    out 6  treasury change\n     *                                    out 7+ BCH change (optional)\n     *\n     * When tax == 0 the BIR output is OMITTED — a zero-amount CashToken output\n     * is invalid under consensus — and everything after it shifts up one slot:\n     *   in  0  this treasury             out 0  net pay -> employee\n     *   in  1  Employment NFT (mutable)  out 1  SSS\n     *   in  2+ fee UTXOs (optional)      out 2  PhilHealth\n     *                                    out 3  Pag-IBIG\n     *                                    out 4  Employment NFT, period + 1\n     *                                    out 5  treasury change\n     *                                    out 6+ BCH change (optional)\n     */\n    function paySalary(\n        bytes20 sssPkh,\n        bytes20 phicPkh,\n        bytes20 hdmfPkh,\n        bytes20 birPkh\n    ) {\n        // ── 0. Pin the transaction shape ─────────────────────────────────\n        // Every input runs its own copy of this script. Pinning the treasury to\n        // input 0 is what stops a second treasury coin from riding along in the\n        // same transaction: input 2 spending this same contract would have to\n        // satisfy `activeInputIndex == 0` too, and cannot. One payroll\n        // transaction therefore draws from exactly one treasury coin, and the\n        // change arithmetic at the bottom accounts for all of it.\n        require(this.activeInputIndex == 0, \"treasury must be input 0\");\n\n        // There is deliberately no \"input 0 must hold ePHP\" check here: the\n        // change clause at the bottom already makes anything else unspendable\n        // through this path. A plain BCH coin has a token amount of zero, so the\n        // required change would be negative; a coin of some other category would\n        // have to be matched centavo for centavo out of the spender's own ePHP.\n        // Redundant checks are not free — they are script bytes.\n\n        // THE TRUST ROOT. `employmentCategory + 0x01` means \"an NFT of this\n        // company's category, with the MUTABLE capability\". The category is\n        // fixed at deployment and can only ever have been minted by whoever\n        // controlled the genesis UTXO, so a forged employment record is\n        // impossible: an attacker can mint NFTs all day, but not of this\n        // category. The mutable capability is what allows the commitment to be\n        // rewritten with the advanced period — an immutable NFT could not\n        // advance, and a minting NFT could spawn new employment records.\n        require(tx.inputs[1].tokenCategory == employmentCategory + 0x01,\n                \"input 1 must be a mutable Employment NFT of this company\");\n\n        require(hash160(sssPkh + phicPkh + hdmfPkh + birPkh) == remitConfigHash,\n                \"remittance configuration does not match\");\n\n        // ── 1. Read the employment record out of the 40-byte commitment ──\n        //  [0:20] payeePkh   [20:24] monthlyBasic  [24:28] monthlyAllowance\n        //  [28:32] taxPerPeriod  [32:34] nextPeriod  [34:36] endPeriod\n        //  [36:37] status  [37:40] employeeNo\n        //\n        // The payee lives INSIDE the commitment rather than in the contract\n        // parameters. That is the single design decision that makes triggering\n        // payroll safe to hand to a stranger: the trigger carries no discretion.\n        bytes payeePkh, bytes c1 = tx.inputs[1].nftCommitment.split(20);\n        bytes basicB,   bytes c2 = c1.split(4);\n        bytes allowB,   bytes c3 = c2.split(4);\n        bytes taxB,     bytes c4 = c3.split(4);\n        bytes periodB,  bytes c5 = c4.split(2);\n        bytes endB,     bytes c6 = c5.split(2);\n        bytes statusB,  bytes employeeNoB = c6.split(1);\n\n        int monthlyBasic     = int(basicB);\n        int monthlyAllowance = int(allowB);   // allowances forming part of compensation\n        int tax              = int(taxB);\n        int period           = int(periodB);\n\n        // Suspension and separation are a status flag, not a key rotation:\n        // flipping this byte to 0 stops payroll for this employee immediately\n        // and permanently, without touching anyone else's record.\n        require(int(statusB) == 1, \"employee is not in active status\");\n\n        // Fixed-term and project-based contracts expire on their own, with no\n        // action required from anyone. This is the clause that stops a payroll\n        // covenant from paying a separated employee forever.\n        require(period <= int(endB), \"employment record has ended\");\n\n        // ── 2. The payday floor ──────────────────────────────────────────\n        // OP_CHECKLOCKTIMEVERIFY. The contract guarantees \"never earlier than\n        // payday\". The employee's own ability to broadcast guarantees \"never\n        // much later\" — they do not need the employer's cooperation to be paid,\n        // which is the whole point. The counter in the commitment is what makes\n        // this safe: period N can only be claimed once, because claiming it\n        // rewrites the record to period N+1.\n        require(tx.time >= genesisTime + period * periodSeconds,\n                \"payday for this period has not arrived\");\n\n        // ── 3. Statutory arithmetic — every value in centavos ────────────\n        //\n        // READ THIS BEFORE \"SIMPLIFYING\" ANYTHING BELOW. Integer division\n        // truncates. `x * 5 / 200` is NOT `x * 5 / 100 / 2` — the second\n        // truncates twice and drifts by a centavo, and a one-centavo drift\n        // makes the transaction unspendable with an error message that tells\n        // you nothing. Every expression here is character-for-character the\n        // same as `src/domain/statutory/deductions.ts`. Change them together\n        // or not at all.\n        int monthlyCompensation = monthlyBasic + monthlyAllowance;\n\n        // ── SSS (RA 11199) ── The Monthly Salary Credit is a BRACKET, not a\n        // salary. SSS publishes a table in P500 steps: everything from\n        // P5,250 to P5,749.99 maps to an MSC of P5,500. Adding half a step\n        // before truncating is round-half-up, which reproduces the published\n        // table exactly in three operations.\n        int msc = ((monthlyCompensation + 25000) / 50000) * 50000;\n        if (msc < 500000)  { msc = 500000;  }   // MSC floor    P5,000\n        if (msc > 3500000) { msc = 3500000; }   // MSC ceiling  P35,000 — the contribution caps here\n\n        // 15% of the MSC, split 5% employee / 10% employer, and half of the\n        // monthly amount falls due each semi-monthly cut-off: rate/100 / 2.\n        int sssEE = msc * 5  / 200;\n        int sssER = msc * 10 / 200;\n\n        // Employees' Compensation premium: employer-only, and a flat peso\n        // amount rather than a rate — P10/month below MSC P15,000, P30/month at\n        // or above it. Halved for the cut-off, so 500 or 1500 centavos.\n        int sssEC = 500;\n        if (msc >= 1500000) { sssEC = 1500; }\n\n        // One output covers all three. SSS receives the employee share, the\n        // employer share and the EC premium in a single payment, which is how\n        // it is actually remitted on the R-5.\n        int sssTotal = sssEE + sssER + sssEC;\n\n        // ── PhilHealth (RA 11223) ── BASIC salary only. Allowances are\n        // excluded by law, which is why this base is computed separately from\n        // the SSS one instead of reusing it.\n        int phicBase = monthlyBasic;\n        if (phicBase < 1000000)  { phicBase = 1000000;  }   // income floor   P10,000\n        if (phicBase > 10000000) { phicBase = 10000000; }   // income ceiling P100,000\n\n        // 5% total premium: 50/1000 * 1/2 (employee share) * 1/2 (cut-off)\n        // == 50/4000, in one division so it truncates exactly once.\n        int phicEE = phicBase * 50 / 4000;\n        int phicTotal = phicEE * 2;   // employer matches the employee peso for peso\n\n        // ── Pag-IBIG (RA 9679, HDMF Circular 460) ── total compensation,\n        // capped at the Maximum Fund Salary. The cap binds for almost every\n        // employee, which is why both fixtures land on the same P100 figure.\n        int hdmfBase = monthlyCompensation;\n        if (hdmfBase > 1000000) { hdmfBase = 1000000; }   // MFS P10,000\n\n        // The employee rate — and ONLY the employee rate — drops to 1% at or\n        // below P1,500 of monthly compensation. The employer always pays 2%.\n        // Note the rate test uses uncapped compensation while the base is\n        // capped; they are different quantities and swapping them is a\n        // classic payroll bug.\n        int hdmfEeRate = 2;\n        if (monthlyCompensation <= 150000) { hdmfEeRate = 1; }\n\n        int hdmfEE = hdmfBase * hdmfEeRate / 200;\n        int hdmfER = hdmfBase * 2 / 200;\n        int hdmfTotal = hdmfEE + hdmfER;\n\n        // ── Net pay ── gross for the cut-off is half of monthly compensation;\n        // the employee's own three shares and the withholding tax come off it.\n        // The employer shares never touch this line — they are additional cost,\n        // not a deduction, and conflating the two is how workers get shorted.\n        int gross = monthlyCompensation / 2;\n        int net = gross - sssEE - phicEE - hdmfEE - tax;\n\n        // A non-positive net means the record is misconfigured (a tax figure\n        // larger than the pay, say). Fail loudly rather than mint an invalid\n        // zero-value token output further down.\n        require(net > 0, \"computed net pay is not positive\");\n\n        // ── 4. Enforce the disbursement, output by output ────────────────\n        // For each output all three of lockingBytecode, tokenCategory and\n        // tokenAmount are pinned. Pinning only two is the classic covenant\n        // hole: the right amount of the WRONG TOKEN, or the right token to the\n        // wrong address, would both still satisfy a partial check.\n        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(unsafe_bytes20(payeePkh)),\n                \"output 0 must pay the employee named in the record\");\n        require(tx.outputs[0].tokenCategory == pesoCategory, \"output 0 must be ePHP\");\n        require(tx.outputs[0].tokenAmount == net, \"output 0 must be exactly net pay\");\n\n        require(tx.outputs[1].lockingBytecode == new LockingBytecodeP2PKH(sssPkh),\n                \"output 1 must pay SSS\");\n        require(tx.outputs[1].tokenCategory == pesoCategory, \"output 1 must be ePHP\");\n        require(tx.outputs[1].tokenAmount == sssTotal, \"output 1 must be the exact SSS contribution\");\n\n        require(tx.outputs[2].lockingBytecode == new LockingBytecodeP2PKH(phicPkh),\n                \"output 2 must pay PhilHealth\");\n        require(tx.outputs[2].tokenCategory == pesoCategory, \"output 2 must be ePHP\");\n        require(tx.outputs[2].tokenAmount == phicTotal, \"output 2 must be the exact PhilHealth premium\");\n\n        require(tx.outputs[3].lockingBytecode == new LockingBytecodeP2PKH(hdmfPkh),\n                \"output 3 must pay Pag-IBIG\");\n        require(tx.outputs[3].tokenCategory == pesoCategory, \"output 3 must be ePHP\");\n        require(tx.outputs[3].tokenAmount == hdmfTotal, \"output 3 must be the exact Pag-IBIG contribution\");\n\n        // ── The BIR output disappears when there is no tax ────────────────\n        // A CashToken output carrying zero fungible units is INVALID under\n        // consensus, so a zero-tax payroll cannot simply send 0 to the BIR —\n        // the output must not exist, and everything after it shifts up by one.\n        // Minimum-wage earners are exempt from income tax under RA 9504, so in\n        // a Philippine private payroll this is the COMMON case, not the edge\n        // case. Getting it wrong makes the covenant unusable for exactly the\n        // workers it most needs to protect.\n        int nftOut    = 5;\n        int changeOut = 6;\n        if (tax > 0) {\n            require(tx.outputs[4].lockingBytecode == new LockingBytecodeP2PKH(birPkh),\n                    \"output 4 must pay the BIR\");\n            require(tx.outputs[4].tokenCategory == pesoCategory, \"output 4 must be ePHP\");\n            require(tx.outputs[4].tokenAmount == tax, \"output 4 must be the exact withholding tax\");\n        } else {\n            nftOut    = 4;\n            changeOut = 5;\n        }\n\n        // ── 5. Return the employment record, period advanced by one ──────\n        // The commitment is rebuilt from the ORIGINAL byte slices with only\n        // nextPeriod replaced. Not \"checked for equality field by field\" —\n        // rebuilt, so there is no field anyone forgot to check. A payroll run\n        // therefore cannot change a salary, a payee, an end date or an\n        // employment status, no matter who broadcasts it.\n        //\n        // Sending the NFT back to the same lockingBytecode keeps it in the\n        // EmploymentVault, whose `payroll()` path in turn requires input 0 to\n        // be THIS treasury. Neither contract can be paired with a look-alike:\n        // the treasury insists on a real employment record, and the vault\n        // insists on a real treasury.\n        require(tx.outputs[nftOut].lockingBytecode == tx.inputs[1].lockingBytecode,\n                \"the employment record must return to its vault\");\n        require(tx.outputs[nftOut].tokenCategory == tx.inputs[1].tokenCategory,\n                \"the employment record must keep its category and mutable capability\");\n        require(tx.outputs[nftOut].nftCommitment ==\n                    payeePkh + basicB + allowB + taxB\n                    + toPaddedBytes(period + 1, 2)\n                    + endB + statusB + employeeNoB,\n                \"only nextPeriod may change, and only by +1\");\n\n        // THE SATOSHI FLOOR, part one. Token checks alone say nothing about\n        // the BCH riding under them. Without this line the anonymous\n        // broadcaster this design deliberately invites could return the NFT\n        // with a dust-minimum 546 sats and pocket the difference in their own\n        // change output — a lawful payroll run doubling as a slow drain of the\n        // record's carrying value. The NFT's satoshis must ride along\n        // undiminished; the separate fee input (in 2+) pays for dust and fees.\n        require(tx.outputs[nftOut].value >= tx.inputs[1].value,\n                \"the employment record must keep its satoshis\");\n\n        // ── 6. Re-create the treasury with the exact remainder ───────────\n        // THE ANTI-LEAK CLAUSE. Every centavo of the input that was not\n        // disbursed above must come back to this same contract address. There\n        // is no \"and the rest goes wherever\" branch: an extra peso output for\n        // anybody else would have to be funded from the transaction's own\n        // inputs, never from the payroll funding.\n        //\n        // Note this cannot produce a zero-value change output — the treasury\n        // may not be drained to exactly zero, since a zero-amount token output\n        // is invalid. The builder leaves a remainder; the final sweep uses\n        // `sweepLapsedNca`.\n        require(tx.outputs[changeOut].lockingBytecode == tx.inputs[0].lockingBytecode,\n                \"the remaining payroll funding must return to the treasury\");\n        require(tx.outputs[changeOut].tokenCategory == pesoCategory,\n                \"treasury change must be ePHP\");\n        require(tx.outputs[changeOut].tokenAmount ==\n                    tx.inputs[0].tokenAmount - net - sssTotal - phicTotal - hdmfTotal - tax,\n                \"treasury change must be the exact remainder\");\n\n        // THE SATOSHI FLOOR, part two — the big one. The clauses above pin\n        // every output's lockingBytecode, tokenCategory and tokenAmount, but a\n        // token covenant that never mentions `.value` has still left its BCH\n        // unguarded: the broadcaster could rebuild this change output with the\n        // exact ePHP remainder sitting on 1,000 sats and strip the treasury\n        // coin's entire BCH balance into their own output. Requiring the\n        // change to carry at least the input's satoshis closes that: the\n        // treasury's BCH rides along undiminished, and the fee input funds\n        // the dust on every disbursement output plus the mining fee.\n        require(tx.outputs[changeOut].value >= tx.inputs[0].value,\n                \"the treasury must keep its satoshis\");\n    }\n\n    /**\n     * Close out the funding cycle.\n     *\n     * Payroll funding is allocated per cycle. After `lapseTime` the payroll\n     * officer returns whatever is left to the company's operating account and a\n     * fresh treasury is deployed for the next cycle. Before `lapseTime` this\n     * path is dead: the officer cannot recall funds an employee is still owed,\n     * which is the difference between an escrow and a promise.\n     *\n     * `tx.inputs.length == 1` is not a formality. Employment NFTs live in a\n     * contract that unlocks whenever input 0 is this treasury, so without this\n     * clause a lapsed-cycle sweep could drag employment records into the same\n     * transaction and rewrite them — handing the officer a power that belongs\n     * exclusively to HR. Restricting the sweep to a lone input closes that\n     * completely, at the cost of needing one transaction per treasury coin and\n     * paying its fee from the coin's own satoshis.\n     */\n    function sweepLapsedNca(sig officerSig, pubkey officerPk) {\n        require(hash160(officerPk) == payrollOfficerPkh, \"not the payroll officer\");\n        require(checkSig(officerSig, officerPk), \"invalid payroll officer signature\");\n        require(tx.time >= lapseTime, \"this payroll funding cycle has not lapsed yet\");\n        require(tx.inputs.length == 1, \"a lapse sweep may not co-spend any other input\");\n    }\n}\n",
+  "fingerprint": "404be81152802bffbc20ff1549f0692c0471c4c534970026a9265f65459ff748",
   "debug": {
-    "bytecode": "5379009c63547a7cad7cb26d755167537a519d5379a97b8872ac777768",
-    "sourceMap": "43:4:46:5;;;;;44:25:44:36;;:38::48;:8::90:1;45:28:45:42:0;:8::83:1;43:39:46:5;;;:4;54::57::0;;;;55:24:55:35;;:16::36:1;:40::52:0;:8::84:1;56:25:56:50:0;:8::93:1;54:59:57:5;;33:0:58:1",
+    "bytecode": "5779009c63587a82011488597a820114885a7a820114885b7a82011488c0009d51ce557a517e88707e52797e787ea9567a8851cf01147f547f547f547f527f527f517f567981567981567981567a81557981519d76577981a169607a7801127a9593b1755379537a937602a861930350c300960350c30095760320a1079f630320a10777687603e06735a06303e06735776876559502c80096785a9502c8009602f401537a0360e316a26302dc05776852797b9393557a760340420f9f630340420f7768760480969800a0630480969800776801329502a00f967652955479760340420fa0630340420f776852567903f04902a163755168787c9502c800967c529502c800967893567a5296567a94547a947b945579947600a06900cd0376a9145e797e0288ac7e8800d10112798800d3789d51cd0376a91401127a7e0288ac7e8851d10111798851d354799d52cd0376a91401117a7e0288ac7e8852d160798852d353799d53cd0376a914607a7e0288ac7e8853d15f798853d352799d5556577900a06354cd0376a9140111797e0288ac7e8854d10111798854d358799d67547b7577556878cd51c78878d151ce8878d25f7a5f7a7e5e7a7e5d7a7e587a8b52807e5b7a7e5a7a7e597a7e887ccc51c6a26976cd00c78876d1587a8876d300d0537a94557a94547a94537a94537a949dcc00c6a2696d6d5167577a519d5879a9567a88567a577aad557ab175c3519d6d6d755168",
+    "sourceMap": "129:4:391:5;;;;;130:8:130:22;;;;;131::131:23;;;;;132::132;;;;;133::133:22;;;;;142:16:142:37;:41::42;:8::72:1;159:26:159:27:0;:16::42:1;:46::64:0;;:67::71;:46:::1;:8:160:76;162:24:162:40:0;::::1;:43::50:0;;:24:::1;:53::59:0;:24:::1;:16::60;:64::79:0;;:8:163:59:1;173:45:173:46:0;:35::61:1;:68::70:0;:35::71:1;174:44:174:45:0;:35::46:1;175:44:175:45:0;:35::46:1;176:44:176:45:0;:35::46:1;177:44:177:45:0;:35::46:1;178:44:178:45:0;:35::46:1;179:53:179:54:0;:44::55:1;181:35:181:41:0;;:31::42:1;182:35:182:41:0;;:31::42:1;183:35:183:39:0;;:31::40:1;184:35:184:42:0;;:31::43:1;189:20:189:27:0;;:16::28:1;:32::33:0;:8::71:1;194:16:194:22:0;:30::34;;:26::35:1;:16;:8::68;203:27:203:38:0;;:41::47;:50::63;;:41:::1;:27;:8:204:58;;215:34:215:46:0;;:49::65;;:34:::1;222:20:222:39:0;:42::47;:20:::1;:51::56:0;:19:::1;:60::65:0;:18:::1;223:12:223:15:0;:18::24;:12:::1;:27::45:0;:35::41;:29::42:1;:27::45;224:12:224:15:0;:18::25;:12:::1;:27::45:0;:35::42;:29::43:1;:27::45;228:20:228:23:0;:26::27;:20:::1;:31::34:0;:20:::1;229::229:23:0;:26::28;:20:::1;:31::34:0;:20:::1;234::234:23:0;235:12:235:15;;:19::26;:12:::1;:28::45:0;:38::42;:30::43:1;:28::45;240:23:240:28:0;;:31::36;:23:::1;:::44;245::245:35:0;;246:12:246:20;:23::30;:12:::1;:33::57:0;:46::53;:35::54:1;:33::57;247:12:247:20:0;:23::31;:12:::1;:33::57:0;:46::54;:35::55:1;:33::57;251:32:251:34:0;:21:::1;:37::41:0;:21:::1;252:24:252:30:0;:33::34;:24:::1;257:23:257:42:0;;258:12:258:20;:23::30;:12:::1;:32::55:0;:45::52;:34::53:1;:32::55;265:25:265:26:0;266:12:266:31;;:35::41;:12:::1;:43::62:0;:45::60:1;;:43::62;268:21:268:29:0;:32::42;:21:::1;:45::48:0;:21:::1;269::269:29:0;:32::33;:21:::1;:36::39:0;:21:::1;270:24:270:30:0;:::39:1;276:20:276::0;;:42::43;:20:::1;277:26:277:31:0;;:18:::1;:34::40:0;;:18:::1;:43::49:0;:18:::1;:52::55:0;;:18:::1;282:16:282:19:0;:22::23;:16:::1;:8::61;289:27:289:28:0;:16::45:1;:49::99:0;:89::97;;:49::99:1;;;:8:290:70;291:27:291:28:0;:16::43:1;:47::59:0;;:8::86:1;292:27:292:28:0;:16::41:1;:45::48:0;:8::86:1;294:27:294:28:0;:16::45:1;:49::81:0;:74::80;;:49::81:1;;;:8:295:41;296:27:296:28:0;:16::43:1;:47::59:0;;:8::86:1;297:27:297:28:0;:16::41:1;:45::53:0;;:8::102:1;299:27:299:28:0;:16::45:1;:49::82:0;:74::81;;:49::82:1;;;:8:300:48;301:27:301:28:0;:16::43:1;:47::59:0;;:8::86:1;302:27:302:28:0;:16::41:1;:45::54:0;;:8::105:1;304:27:304:28:0;:16::45:1;:49::82:0;:74::81;;:49::82:1;;;:8:305:46;306:27:306:28:0;:16::43:1;:47::59:0;;:8::86:1;307:27:307:28:0;:16::41:1;:45::54:0;;:8::108:1;317:24:317:25:0;318::318;319:12:319:15;;:18::19;:12:::1;:21:324:9:0;320:31:320:32;:20::49:1;:53::85:0;:78::84;;:53::85:1;;;:12:321:49;322:31:322:32:0;:20::47:1;:51::63:0;;:12::90:1;323:31:323:32:0;:20::45:1;:49::52:0;;:12::100:1;324:15:327:9:0;325:24:325:25;:12::26:1;;::326;326;324:15:327:9;341:27:341:33:0;:16::50:1;:64::65:0;:54::82:1;:8:342:66;343:27:343:33:0;:16::48:1;:62::63:0;:52::78:1;:8:344:87;345:27:345:33:0;:16::48:1;346:20:346:28:0;;:31::37;;:20:::1;:40::46:0;;:20:::1;:49::53:0;;:20:::1;347:36:347:42:0;;:::46:1;:48::49:0;:22::50:1;346:20;348:22:348:26:0;;346:20:::1;348:29::36:0;;346:20:::1;348:39::50:0;;346:20:::1;345:8:349:62;358:27:358:33:0;:16::40:1;:54::55:0;:44::62:1;:16;:8:359:64;372:27:372:36:0;:16::53:1;:67::68:0;:57::85:1;:8:373:77;374:27:374:36:0;:16::51:1;:55::67:0;;:8:375:48:1;376:27:376:36:0;:16::49:1;377:30:377:31:0;:20::44:1;:47::50:0;;:20:::1;:53::61:0;;:20:::1;:64::73:0;;:20:::1;:76::85:0;;:20:::1;:88::91:0;;:20:::1;376:8:378:63;389:16:389:43;:57::58:0;:47::65:1;:16;:8:390:55;134:6:391:5;;;129:4;410::415::0;;;;411:24:411:33;;:16::34:1;:38::55:0;;:8::84:1;412:25:412:35:0;;:37::46;;:8::86:1;413:27:413:36:0;;:8::87:1;;414:16:414:32:0;:36::37;:8::89:1;410:62:415:5;;;;90:0:416:1",
     "logs": [],
     "requires": [
       {
-        "ip": 11,
-        "line": 44,
-        "message": "payroll: invalid operator signature"
+        "ip": 34,
+        "line": 142,
+        "message": "treasury must be input 0"
       },
       {
-        "ip": 13,
-        "line": 45,
-        "message": "payroll: pay period has not elapsed"
+        "ip": 41,
+        "line": 159,
+        "message": "input 1 must be a mutable Employment NFT of this company"
       },
       {
-        "ip": 26,
-        "line": 55,
-        "message": "payroll: not the treasurer"
+        "ip": 52,
+        "line": 162,
+        "message": "remittance configuration does not match"
       },
       {
-        "ip": 29,
-        "line": 56,
-        "message": "payroll: invalid treasurer signature"
+        "ip": 85,
+        "line": 189,
+        "message": "employee is not in active status"
+      },
+      {
+        "ip": 91,
+        "line": 194,
+        "message": "employment record has ended"
+      },
+      {
+        "ip": 99,
+        "line": 203,
+        "message": "payday for this period has not arrived"
+      },
+      {
+        "ip": 222,
+        "line": 282,
+        "message": "computed net pay is not positive"
+      },
+      {
+        "ip": 231,
+        "line": 289,
+        "message": "output 0 must pay the employee named in the record"
+      },
+      {
+        "ip": 236,
+        "line": 291,
+        "message": "output 0 must be ePHP"
+      },
+      {
+        "ip": 240,
+        "line": 292,
+        "message": "output 0 must be exactly net pay"
+      },
+      {
+        "ip": 249,
+        "line": 294,
+        "message": "output 1 must pay SSS"
+      },
+      {
+        "ip": 254,
+        "line": 296,
+        "message": "output 1 must be ePHP"
+      },
+      {
+        "ip": 259,
+        "line": 297,
+        "message": "output 1 must be the exact SSS contribution"
+      },
+      {
+        "ip": 268,
+        "line": 299,
+        "message": "output 2 must pay PhilHealth"
+      },
+      {
+        "ip": 273,
+        "line": 301,
+        "message": "output 2 must be ePHP"
+      },
+      {
+        "ip": 278,
+        "line": 302,
+        "message": "output 2 must be the exact PhilHealth premium"
+      },
+      {
+        "ip": 287,
+        "line": 304,
+        "message": "output 3 must pay Pag-IBIG"
+      },
+      {
+        "ip": 292,
+        "line": 306,
+        "message": "output 3 must be ePHP"
+      },
+      {
+        "ip": 297,
+        "line": 307,
+        "message": "output 3 must be the exact Pag-IBIG contribution"
+      },
+      {
+        "ip": 313,
+        "line": 320,
+        "message": "output 4 must pay the BIR"
+      },
+      {
+        "ip": 318,
+        "line": 322,
+        "message": "output 4 must be ePHP"
+      },
+      {
+        "ip": 323,
+        "line": 323,
+        "message": "output 4 must be the exact withholding tax"
+      },
+      {
+        "ip": 335,
+        "line": 341,
+        "message": "the employment record must return to its vault"
+      },
+      {
+        "ip": 340,
+        "line": 343,
+        "message": "the employment record must keep its category and mutable capability"
+      },
+      {
+        "ip": 369,
+        "line": 345,
+        "message": "only nextPeriod may change, and only by +1"
+      },
+      {
+        "ip": 375,
+        "line": 358,
+        "message": "the employment record must keep its satoshis"
+      },
+      {
+        "ip": 380,
+        "line": 372,
+        "message": "the remaining payroll funding must return to the treasury"
+      },
+      {
+        "ip": 385,
+        "line": 374,
+        "message": "treasury change must be ePHP"
+      },
+      {
+        "ip": 405,
+        "line": 376,
+        "message": "treasury change must be the exact remainder"
+      },
+      {
+        "ip": 410,
+        "line": 389,
+        "message": "the treasury must keep its satoshis"
+      },
+      {
+        "ip": 424,
+        "line": 411,
+        "message": "not the payroll officer"
+      },
+      {
+        "ip": 429,
+        "line": 412,
+        "message": "invalid payroll officer signature"
+      },
+      {
+        "ip": 432,
+        "line": 413,
+        "message": "this payroll funding cycle has not lapsed yet"
+      },
+      {
+        "ip": 436,
+        "line": 414,
+        "message": "a lapse sweep may not co-spend any other input"
       }
     ],
-    "sourceTags": "26:27:sc"
+    "sourceTags": "5:9:pv;10:14:pv;15:19:pv;20:24:pv"
   },
   "compiler": {
     "name": "cashc",
@@ -77,5 +255,5 @@
       "enforceLocktimeGuard": true
     }
   },
-  "updatedAt": "2026-08-01T02:43:01.311Z"
+  "updatedAt": "2026-08-01T05:47:26.364Z"
 }

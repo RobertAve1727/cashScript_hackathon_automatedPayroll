@@ -7,7 +7,7 @@ import {
   ChainMode,
   PersistenceMode,
   createPayrollTreasuryContract,
-  loadPayrollTreasuryArtifact,
+  loadSimpleBchTreasuryArtifact,
   resolveTreasuryKeys,
   type PayrollConfiguration,
   type PayrollTreasuryContract,
@@ -44,7 +44,7 @@ describe('CashScriptDisbursementGateway', () => {
   beforeEach(() => {
     provider = new MockNetworkProvider();
     const keys = resolveTreasuryKeys(CONFIG);
-    contract = createPayrollTreasuryContract(CONFIG, provider, keys, loadPayrollTreasuryArtifact());
+    contract = createPayrollTreasuryContract(CONFIG, provider, keys, loadSimpleBchTreasuryArtifact());
     gateway = new CashScriptDisbursementGateway({
       contract,
       operator: keys.operator,
@@ -137,7 +137,7 @@ describe('CashScriptDisbursementGateway', () => {
         CONFIG,
         provider,
         resolveTreasuryKeys(CONFIG),
-        loadPayrollTreasuryArtifact(),
+        loadSimpleBchTreasuryArtifact(),
       );
 
       expect(again.address).toBe(contract.address);
@@ -150,14 +150,14 @@ describe('CashScriptDisbursementGateway', () => {
         slower,
         provider,
         resolveTreasuryKeys(slower),
-        loadPayrollTreasuryArtifact(),
+        loadSimpleBchTreasuryArtifact(),
       );
 
       expect(other.address).not.toBe(contract.address);
     });
 
     it('exposes the two spending paths from the compiled artifact', () => {
-      expect(loadPayrollTreasuryArtifact().abi.map((entry) => entry.name)).toEqual(['disburse', 'reclaim']);
+      expect(loadSimpleBchTreasuryArtifact().abi.map((entry) => entry.name)).toEqual(['disburse', 'reclaim']);
     });
   });
 });

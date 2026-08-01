@@ -65,6 +65,17 @@ export {
   type FixtureEmployee,
   type OutputLayout,
 } from './payroll/types.js';
+export {
+  commitmentForEmployee,
+  commitmentFromHex,
+  commitmentToHex,
+  decodeCommitment,
+  encodeCommitment,
+  MAX_ENCODABLE_PERIOD,
+  type EmploymentCommitment,
+  type EmploymentStatusCode,
+  type EmploymentTerms,
+} from './payroll/commitment.js';
 
 export type { EmployeeRepository } from './repositories/employee-repository.js';
 export type { PayrollRunRepository } from './repositories/payroll-run-repository.js';
