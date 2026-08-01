@@ -18,8 +18,18 @@ import { buildPaySalaryTransaction } from '../../src/infrastructure/blockchain/e
  * what the other actually proves.
  */
 
-export const EMPLOYMENT_CATEGORY = 'e1'.repeat(32);
-export const PESO_CATEGORY = 'e2'.repeat(32);
+/**
+ * These two are deliberately NOT of the `'e1'.repeat(32)` shape.
+ *
+ * A category is a genesis txid, and the BCH VM sees it in the reverse of the
+ * byte order everything on the JavaScript side uses (see `toVmCategoryOrder`
+ * in `addresses.ts`). A category whose every byte is identical reverses to
+ * itself, so it makes the whole suite blind to that reversal being dropped —
+ * a bug that passes 315 tests and then makes the treasury permanently
+ * unspendable the first time it meets a real chain. Keep these asymmetric.
+ */
+export const EMPLOYMENT_CATEGORY = '9d1f7a3c04b8e25610fd93ac7b41e8025f6c3d9018be74a2c5031f8d6e2b4a70';
+export const PESO_CATEGORY = '31c8b60f9a24d75e08163bf4ce9207da5b8e41306c7fa9d2185e30bc47f6a9e1';
 export const PERIOD_SECONDS = 1_314_873n;
 const NOW = BigInt(Math.floor(Date.now() / 1000));
 // The demo trick from the architecture doc: periods 0-4 are already
