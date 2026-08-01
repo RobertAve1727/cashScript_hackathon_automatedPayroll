@@ -77,5 +77,53 @@ export {
   type EmploymentTerms,
 } from './payroll/commitment.js';
 
+// Pay cadence: the engine computes any schedule exactly; the deployed covenant
+// settles semi-monthly. `PayrollSchedule.settledByDeployedCovenant` is the
+// single place that distinction is recorded.
+export {
+  DAILY,
+  MONTHLY_UNLAWFUL,
+  SELECTABLE_SCHEDULES,
+  SEMI_MONTHLY,
+  WEEKLY,
+  WORKING_DAYS_PER_MONTH,
+  isLawfulCadence,
+  periodOfMonth,
+  type PayrollCadence,
+  type PayrollSchedule,
+} from './payroll/schedule.js';
+export {
+  allocateMonthlyAmount,
+  allocateMonthlyAmountAcrossMonth,
+} from './statutory/allocation.js';
+export {
+  computeScheduledDeductions,
+  monthlyObligations,
+  scheduleMonth,
+  type MonthlyObligations,
+  type ScheduledDeductionInput,
+  type ScheduledDeductions,
+} from './statutory/scheduled-deductions.js';
+
+// Attendance: the input a payroll covenant cannot supply for itself.
+export {
+  ANCHOR_BYTES,
+  ANCHOR_MAGIC,
+  ANCHOR_VERSION,
+  PUNCH_KIND_CODE,
+  STANDARD_WORKDAY_SECONDS,
+  WORKDAY_BASIS_POINTS,
+  decodePunch,
+  encodePunch,
+  isSettled,
+  totalBasisPoints,
+  workedBasisPoints,
+  workedFraction,
+  workedSeconds,
+  type Punch,
+  type PunchKind,
+  type TimeRecord,
+} from './attendance/time-record.js';
+
 export type { EmployeeRepository } from './repositories/employee-repository.js';
 export type { PayrollRunRepository } from './repositories/payroll-run-repository.js';

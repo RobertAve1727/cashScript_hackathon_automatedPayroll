@@ -17,3 +17,4 @@ export const SATOSHIS_PER_BCH = 100_000_000n;
 
 /** Total BCH supply, in satoshis — the ceiling for any amount. */
 export const MAX_SUPPLY_SATOSHIS = 2_100_000_000_000_000n;
+
