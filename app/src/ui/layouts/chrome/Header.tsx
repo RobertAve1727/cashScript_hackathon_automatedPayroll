@@ -5,6 +5,7 @@ import { ROLE_LABEL } from '../../../auth/users'
 import { homeRouteFor, LOGIN_ROUTE } from '@ui/domain/navigation/esahodNavigation'
 import { useAppServices } from '@ui/providers/AppServicesProvider'
 import type { ThemeMode } from '@ui/domain/theme/ThemeSettings'
+import { toggleProofView, useProofView } from '../../../view/proof-view'
 
 /**
  * The top bar, in the SmartHR template's own markup.
@@ -23,6 +24,7 @@ export default function Header() {
   const { theme } = useAppServices()
   const [mode, setMode] = useState<ThemeMode>(() => theme.getSettings().theme)
   const user = useSession()
+  const proofView = useProofView()
   const navigate = useNavigate()
 
   // The service is the source of truth; theme-script.js may have restored a
@@ -71,6 +73,37 @@ export default function Header() {
                 </span>
               </div>{' '}
               <div className="d-flex align-items-center gap-2">
+                {/*
+                  Proof view. A labelled switch rather than another icon button:
+                  the two states are not obvious from an icon alone, and this is
+                  the control that decides whether the app reads as a payroll
+                  system or as a protocol demo.
+                */}
+                <div
+                  className="form-check form-switch d-none d-md-flex align-items-center mb-0 me-1"
+                  title="Reveal the 40-byte commitments, OP_RETURN payloads and anchor transactions behind every figure"
+                >
+                  <input
+                    className="form-check-input mt-0"
+                    type="checkbox"
+                    role="switch"
+                    id="proof_view_switch"
+                    checked={proofView}
+                    onChange={toggleProofView}
+                  />
+                  <label className="form-check-label fs-12 ms-2 text-nowrap" htmlFor="proof_view_switch">
+                    Proof view
+                  </label>
+                </div>
+                {/* Icon-only below md, where the label does not fit. */}
+                <button
+                  type="button"
+                  className={`btn btn-menubar d-md-none ${proofView ? 'active' : ''}`}
+                  onClick={toggleProofView}
+                  title={proofView ? 'Hide the bytes' : 'Show the bytes'}
+                >
+                  <i className="ti ti-binary"></i>
+                </button>
                 <button
                   type="button"
                   className="btn btn-menubar"

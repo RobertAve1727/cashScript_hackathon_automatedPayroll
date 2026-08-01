@@ -9,6 +9,7 @@ import { errorMessage, useChainState } from '../chain/use-chain'
 import { OutputDiagram } from '../components/OutputDiagram'
 import { Card, CardHeader, ErrorNote, Loading, PageHeader, StatTile, StatusBadge } from '../components/ui'
 import { formatEphp, formatPeso, truncateHex } from '../lib/format'
+import { useProofView } from '../view/proof-view'
 
 /**
  * /treasurer — the payroll officer's console. The role is deliberately
@@ -20,6 +21,7 @@ export default function TreasurerPage() {
   const [runs, setRuns] = useState<PayrollRun[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  const proofView = useProofView()
 
   if (!state) return <Loading />
   const { treasury, employees } = state
@@ -85,17 +87,23 @@ export default function TreasurerPage() {
               />
               <div className="card-body">
                 <h1 className="mb-1">{formatPeso(treasury.ephpBalance)}</h1>
-                <p className="fs-13 text-muted mb-4 font-monospace">
-                  {formatEphp(treasury.ephpBalance)}
-                </p>
+                {proofView ? (
+                  <p className="fs-13 text-muted mb-4 font-monospace">
+                    {formatEphp(treasury.ephpBalance)}
+                  </p>
+                ) : (
+                  <p className="fs-13 text-muted mb-4">Funded for this payroll cycle</p>
+                )}
                 <div className="row g-3">
-                  <div className="col-sm-6">
-                    <p className="fs-12 mb-1 text-muted">Token category</p>
-                    <p className="mb-0 font-monospace fs-13 text-truncate">
-                      {truncateHex(treasury.tokenCategory, 12, 6)}
-                    </p>
-                  </div>
-                  <div className="col-sm-6">
+                  {proofView ? (
+                    <div className="col-sm-6">
+                      <p className="fs-12 mb-1 text-muted">Token category</p>
+                      <p className="mb-0 font-monospace fs-13 text-truncate">
+                        {truncateHex(treasury.tokenCategory, 12, 6)}
+                      </p>
+                    </div>
+                  ) : null}
+                  <div className={proofView ? 'col-sm-6' : 'col-12'}>
                     <p className="fs-12 mb-1 text-muted">Covenant address</p>
                     <p className="mb-0 font-monospace fs-13 text-truncate">{treasury.address}</p>
                   </div>

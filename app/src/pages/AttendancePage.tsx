@@ -3,6 +3,7 @@ import { useAttendance } from '../chain/attendance-gateway'
 import { useChainState } from '../chain/use-chain'
 import { Card, CardHeader, Loading, PageHeader, StatTile } from '../components/ui'
 import { truncateHex } from '../lib/format'
+import { useProofView } from '../view/proof-view'
 
 /**
  * /hr/attendance — every employee's daily time record, and where each one came
@@ -16,6 +17,7 @@ import { truncateHex } from '../lib/format'
 export default function AttendancePage() {
   const state = useChainState()
   const days = useAttendance()
+  const proofView = useProofView()
 
   if (!state) return <Loading />
 
@@ -49,9 +51,9 @@ export default function AttendancePage() {
         </div>
         <div className="col-xl-3 col-md-6">
           <StatTile
-            label="On-chain anchors"
+            label="On-chain records"
             value={anchors}
-            sub="OP_RETURN punches"
+            sub={proofView ? 'OP_RETURN punches' : 'Clock-ins and clock-outs'}
             icon="ti ti-link"
             tone="info"
           />
@@ -61,7 +63,11 @@ export default function AttendancePage() {
       <Card>
         <CardHeader
           title="Daily time records"
-          hint="Every row cites the punches that produced it. HR reviews attendance here; nobody edits it."
+          hint={
+            proofView
+              ? 'Every row cites the anchor transactions that produced it. HR reviews attendance here; nobody edits it.'
+              : 'HR reviews attendance here. Nobody edits it — every row came from a clock-in the employee made.'
+          }
         />
         <div className="card-body p-0">
           {days.length === 0 ? (
@@ -79,7 +85,7 @@ export default function AttendancePage() {
                     <th>Out</th>
                     <th>Hours</th>
                     <th>Day worked</th>
-                    <th>Anchored punches</th>
+                    {proofView ? <th>Anchored punches</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -112,18 +118,18 @@ export default function AttendancePage() {
                           {(workedBasisPoints(day) / 100).toFixed(0)}%
                         </span>
                       </td>
-                      <td className="fs-12">
-                        {day.punches.map((punch) => (
-                          <span key={punch.txid} className="d-block font-monospace text-muted">
-                            <span
-                              className={punch.kind === 'in' ? 'text-success' : 'text-danger'}
-                            >
-                              {punch.kind === 'in' ? 'in ' : 'out'}
-                            </span>{' '}
-                            {truncateHex(punch.txid, 10, 6)}
-                          </span>
-                        ))}
-                      </td>
+                      {proofView ? (
+                        <td className="fs-12">
+                          {day.punches.map((punch) => (
+                            <span key={punch.txid} className="d-block font-monospace text-muted">
+                              <span className={punch.kind === 'in' ? 'text-success' : 'text-danger'}>
+                                {punch.kind === 'in' ? 'in ' : 'out'}
+                              </span>{' '}
+                              {truncateHex(punch.txid, 10, 6)}
+                            </span>
+                          ))}
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

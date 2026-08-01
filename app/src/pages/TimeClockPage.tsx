@@ -10,6 +10,7 @@ import { attendanceGateway, openDay, useAttendance, type AnchoredPunch } from '.
 import { Card, CardHeader, ErrorNote, Loading, PageHeader } from '../components/ui'
 import { formatPeso, formatWhen, truncateHex } from '../lib/format'
 import { useSession } from '../auth/session'
+import { useProofView } from '../view/proof-view'
 
 /**
  * /my/time — the employee's clock, and the moment attendance becomes a fact.
@@ -31,6 +32,7 @@ export default function TimeClockPage() {
   const days = useAttendance(employeeNo)
   const [error, setError] = useState<string | null>(null)
   const [lastPunch, setLastPunch] = useState<AnchoredPunch | null>(null)
+  const proofView = useProofView()
 
   if (!state) return <Loading />
 
@@ -74,7 +76,11 @@ export default function TimeClockPage() {
           <Card className="flex-fill">
             <CardHeader
               title={clockedIn ? 'On the clock' : 'Not clocked in'}
-              hint="Each tap is written to the chain as an OP_RETURN before it is written anywhere else."
+              hint={
+                proofView
+                  ? 'Each tap is written to the chain as a 13-byte OP_RETURN before it is written anywhere else.'
+                  : 'Each tap is recorded on the chain the moment it happens, so it cannot be edited later.'
+              }
             />
             <div className="card-body text-center">
               <div
@@ -179,7 +185,7 @@ export default function TimeClockPage() {
         </div>
       </div>
 
-      {lastPunch ? (
+      {proofView && lastPunch ? (
         <Card>
           <CardHeader
             title="The punch that just went on chain"
@@ -231,7 +237,7 @@ export default function TimeClockPage() {
                     <th>Out</th>
                     <th>Hours</th>
                     <th>Day</th>
-                    <th>Anchors</th>
+                    {proofView ? <th>Anchors</th> : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -260,9 +266,11 @@ export default function TimeClockPage() {
                           {(workedBasisPoints(day) / 100).toFixed(0)}%
                         </span>
                       </td>
-                      <td className="font-monospace fs-12 text-muted">
-                        {day.punches.map((p) => truncateHex(p.txid, 6, 4)).join(', ')}
-                      </td>
+                      {proofView ? (
+                        <td className="font-monospace fs-12 text-muted">
+                          {day.punches.map((p) => truncateHex(p.txid, 6, 4)).join(', ')}
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>

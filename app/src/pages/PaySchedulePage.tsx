@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import {
   MONTHLY_UNLAWFUL,
   SELECTABLE_SCHEDULES,
@@ -10,6 +10,7 @@ import {
 import { useChainState } from '../chain/use-chain'
 import { Card, CardHeader, Loading, PageHeader } from '../components/ui'
 import { formatPeso } from '../lib/format'
+import { useProofView } from '../view/proof-view'
 
 /**
  * /hr/schedule — choose how often the company pays, and see the arithmetic
@@ -29,6 +30,7 @@ export default function PaySchedulePage() {
   const state = useChainState()
   const [schedule, setSchedule] = useState<PayrollSchedule>(SEMI_MONTHLY)
   const [employeeNo, setEmployeeNo] = useState<number | null>(null)
+  const proofView = useProofView()
 
   if (!state) return <Loading />
 
@@ -129,12 +131,19 @@ export default function PaySchedulePage() {
 
               <div className="alert alert-light border mt-3 mb-0 fs-12">
                 <i className="ti ti-info-circle me-1"></i>
-                {MONTHLY_UNLAWFUL.label}. And the honest note on the badges above: the deployed
-                covenant hardcodes the semi-monthly divisor —{' '}
-                <code>msc * 5 / 200</code> and <code>gross = monthlyCompensation / 2</code>. Its{' '}
-                <code>periodSeconds</code> parameter controls only when a period becomes claimable,
-                so switching cadence on chain is a redeploy with two changed constants, not a flag.
-                The engine below already computes every cadence exactly.
+                {MONTHLY_UNLAWFUL.label}.{' '}
+                {proofView ? (
+                  <Fragment>
+                    And the honest note on the badges above: the deployed covenant hardcodes the
+                    semi-monthly divisor — <code>msc * 5 / 200</code> and{' '}
+                    <code>gross = monthlyCompensation / 2</code>. Its <code>periodSeconds</code>{' '}
+                    parameter controls only when a period becomes claimable, so switching cadence on
+                    chain is a redeploy with two changed constants, not a flag. The engine below
+                    already computes every cadence exactly.
+                  </Fragment>
+                ) : (
+                  'The figures below are exact at every cadence; only semi-monthly is settled on chain today.'
+                )}
               </div>
             </div>
           </Card>

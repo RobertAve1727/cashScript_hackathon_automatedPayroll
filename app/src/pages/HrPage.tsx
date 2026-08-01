@@ -10,6 +10,7 @@ import { CommitmentHex } from '../components/CommitmentHex'
 import { Card, CardHeader, ErrorNote, Loading, PageHeader, StatusBadge } from '../components/ui'
 import { bytesToHex, formatPeso, parsePesoInput } from '../lib/format'
 import { useWallet } from '../wallet/paytaca'
+import { useProofView } from '../view/proof-view'
 
 /**
  * /hr — where employment records are born and amended. Issuance mints a
@@ -22,6 +23,7 @@ export default function HrPage() {
   const [lastAmend, setLastAmend] = useState<AmendResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [issued, setIssued] = useState<string | null>(null)
+  const proofView = useProofView()
 
   if (!state) return <Loading />
   const { employees } = state
@@ -64,7 +66,11 @@ export default function HrPage() {
       <Card>
         <CardHeader
           title="Employment roster"
-          hint="amend() is the only signed path in the system — HR's key rewrites the commitment, and the monotonic period counter can never move backwards."
+          hint={
+            proofView
+              ? "amend() is the only signed path in the system — HR's key rewrites the commitment, and the monotonic period counter can never move backwards."
+              : 'Changing a record takes HR’s key and is recorded on the chain. A pay period that has been paid can never be reopened.'
+          }
         />
         <div className="card-body">
           {employees.map((employee) => (
@@ -108,6 +114,7 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
    * syncing state in an effect) means the field can never go stale against the
    * wallet, and HR's own edit always wins.
    */
+  const proofView = useProofView()
   const wallet = useWallet()
   const walletPkhHex = wallet.status === 'connected' ? wallet.account.pkhHex : null
   const [pkhOverride, setPkhOverride] = useState<string | null>(null)
@@ -284,12 +291,29 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
                 </div>
               </div>
               <div className="col-xl-5">
-                {attempt.ok ? (
-                  <CommitmentHex hex={attempt.hex} />
-                ) : (
+                {/*
+                  Same panel, two audiences. With proof view on it is the live
+                  40-byte encoding — the claim that this form writes the chain
+                  directly. With it off it is what HR is about to commit to,
+                  in words, which is what someone issuing a contract needs to
+                  check before pressing the button.
+                */}
+                {!attempt.ok ? (
                   <div className="alert alert-warning mb-0" role="alert">
                     {attempt.problem}
                   </div>
+                ) : proofView ? (
+                  <CommitmentHex hex={attempt.hex} />
+                ) : (
+                  <IssueReview
+                    name={name}
+                    position={position}
+                    basicText={basicText}
+                    allowanceText={allowanceText}
+                    taxText={taxText}
+                    endText={endText}
+                    employeeNo={props.nextEmployeeNo}
+                  />
                 )}
               </div>
             </div>
@@ -321,6 +345,45 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
   )
 }
 
+/** What is about to be committed, in words — the proof-view-off counterpart. */
+function IssueReview(props: {
+  name: string
+  position: string
+  basicText: string
+  allowanceText: string
+  taxText: string
+  endText: string
+  employeeNo: number
+}) {
+  const rows: readonly [string, string][] = [
+    ['Employee', props.name.trim() === '' ? 'Unnamed Employee' : props.name],
+    ['Position', props.position.trim() === '' ? '—' : props.position],
+    ['Employee number', `#${props.employeeNo}`],
+    ['Monthly basic', `₱${props.basicText}`],
+    ['Monthly allowance', `₱${props.allowanceText}`],
+    ['Withholding tax / period', `₱${props.taxText}`],
+    ['Paid through period', `${props.endText} of 24`],
+  ]
+
+  return (
+    <div className="border rounded p-3 h-100">
+      <h6 className="mb-1">Review</h6>
+      <p className="fs-12 text-muted mb-3">
+        Issuing writes this to the chain as the employee&rsquo;s record. Terms can be amended later
+        with HR&rsquo;s key; the pay-period counter can never be moved backwards.
+      </p>
+      <dl className="mb-0">
+        {rows.map(([label, value]) => (
+          <div className="d-flex justify-content-between border-bottom py-2" key={label}>
+            <dt className="fs-12 fw-normal text-muted">{label}</dt>
+            <dd className="fs-13 fw-medium mb-0 text-end">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
+
 // ── Roster row with amend / suspend / separate ───────────────────────────
 
 function RosterRow(props: {
@@ -329,6 +392,7 @@ function RosterRow(props: {
 }) {
   const { employee, onAction } = props
   const c = employee.commitment
+  const proofView = useProofView()
   const [editing, setEditing] = useState(false)
   const [basicText, setBasicText] = useState('')
   const [allowanceText, setAllowanceText] = useState('')
@@ -446,9 +510,16 @@ function RosterRow(props: {
         </div>
       ) : null}
 
-      <div className="mt-3">
-        <CommitmentHex hex={employee.commitmentHex} showLegend={false} />
-      </div>
+      {/*
+        The commitment restates, in hex, every field already printed in words
+        on the row above it. That is proof when someone is checking the record
+        really is on chain, and noise when someone is running payroll.
+      */}
+      {proofView ? (
+        <div className="mt-3">
+          <CommitmentHex hex={employee.commitmentHex} showLegend={false} />
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -458,26 +529,39 @@ function RosterRow(props: {
 function AmendDiff(props: { result: AmendResult }) {
   const { result } = props
   const changes = describeChanges(result)
+  const proofView = useProofView()
 
   return (
     <Card>
       <CardHeader
         title={
           <Fragment>
-            Commitment diff — {result.action} on #{result.employeeNo}
+            What changed — {result.action} on #{result.employeeNo}
           </Fragment>
         }
-        hint="Highlighted bytes are the ones HR's signature rewrote. Everything else is provably untouched."
+        hint={
+          proofView
+            ? "Highlighted bytes are the ones HR's signature rewrote. Everything else is provably untouched."
+            : 'Every field HR’s signature rewrote. Anything not listed here was not touched.'
+        }
       />
       <div className="card-body">
         <div className="row g-4">
-          <div className="col-xl-6">
-            <p className="fs-12 mb-1 text-muted">before</p>
-            <CommitmentHex hex={result.beforeHex} compareHex={result.afterHex} showLegend={false} />
-            <p className="fs-12 mb-1 mt-3 text-muted">after</p>
-            <CommitmentHex hex={result.afterHex} compareHex={result.beforeHex} showLegend={false} />
-          </div>
-          <div className="col-xl-6">
+          {/*
+            The byte strips are the strongest evidence in the app — they show
+            not just what changed but that nothing else did. They are still
+            proof rather than payroll, so they follow the switch; the field
+            table beside them says the same thing in words and always shows.
+          */}
+          {proofView ? (
+            <div className="col-xl-6">
+              <p className="fs-12 mb-1 text-muted">before</p>
+              <CommitmentHex hex={result.beforeHex} compareHex={result.afterHex} showLegend={false} />
+              <p className="fs-12 mb-1 mt-3 text-muted">after</p>
+              <CommitmentHex hex={result.afterHex} compareHex={result.beforeHex} showLegend={false} />
+            </div>
+          ) : null}
+          <div className={proofView ? 'col-xl-6' : 'col-12'}>
             <div className="table-responsive">
               <table className="table table-sm table-nowrap mb-0">
                 <thead className="table-light">
