@@ -16,6 +16,10 @@ because there is no state in which the deduction happened and the remittance did
 This README documents exactly what is in this repository today. Where something is a roadmap
 item rather than a shipped feature, it is labelled as one.
 
+**New to the project? Start with [`docs/how-it-works.md`](docs/how-it-works.md)** — it walks the
+whole flow from a clock-in to money arriving at four agencies, explains which parts run on chain
+and which do not, and carries a plain table of what is proven versus what is still mocked.
+
 ## Contents
 
 - [Architecture](#architecture)
@@ -361,6 +365,7 @@ src/main/                       composition root + CLI entry point
 
 app/                             the eSahod frontend (Vite + React), outside src/ and the dependency-rule test
 
+docs/how-it-works.md            the end-to-end explanation: where the chain is, the full flow, and what is real vs mocked
 docs/judge-answers.md           five questions a non-CashScript judge will ask, answered with file/line references
 docs/pitch-deck.md              the pitch, one H2 per slide
 ```
