@@ -46,10 +46,19 @@ const DEFAULT_NFT_DUST_SATOSHIS = 1_000n;
  * An earlier chipnet-script brief for this project described "the minting
  * baton returned to HR" after issuing a record. That is precisely the
  * mistake this function exists to prevent: keeping the baton alive means HR
- * (or anyone who steals HR's key) can mint a forged record at any time. If
- * new hires must be enrollable after genesis, the correct extension is a
- * baton held inside its own covenant that can only emit NFTs whose
- * `lockingBytecode` equals the vault — never a baton returned to a plain key.
+ * (or anyone who steals HR's key) can mint a forged record at any time.
+ *
+ * If new hires must be enrollable after genesis, a baton covenant has to
+ * constrain WHAT is minted — the commitment must be pre-committed by a
+ * separate key or multisig, or co-signed by the employee — and not merely
+ * where the NFT lands. An earlier draft of this comment recommended "a baton
+ * inside a covenant that may only emit NFTs whose `lockingBytecode` equals
+ * the vault". That does not work, and `genesis.test.ts`'s second CONTRAST
+ * case proves it on the VM: a forged record minted straight into the vault
+ * is paid exactly like a genuine one, because `EmploymentVault.payroll()`
+ * checks only that input 0 is the treasury and `paySalary` reads the
+ * commitment's salary and payee as truth. Sitting in the vault is an
+ * address, not a credential.
  */
 export function buildGenesisEmploymentTransaction(
   options: BuildGenesisEmploymentTransactionOptions,

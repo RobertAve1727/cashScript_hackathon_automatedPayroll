@@ -144,10 +144,13 @@ hires" pattern and shows the same forged-mint attack *succeeding* against it. Th
 closure sit side by side in one file.
 
 The residual boundary, stated plainly: if new hires must be enrollable *after* genesis, the baton
-has to survive, and then this hole reopens. The correct extension is a baton held inside its own
-covenant that can only emit NFTs whose `lockingBytecode` equals the vault — never a baton returned
-to a plain key. See [`docs/judge-answers.md`](docs/judge-answers.md) for the full "compromised HR
-key" answer.
+has to survive, and then this hole reopens. A baton covenant then has to constrain **what** is
+minted — the commitment pre-committed by a separate key, or co-signed by the employee — not merely
+where the NFT lands. An earlier version of this section recommended "a covenant that can only emit
+NFTs whose `lockingBytecode` equals the vault"; a second `CONTRAST` case in that same test file
+shows why that is not enough, draining 60% of the treasury with a forged record minted *into* the
+vault. Landing in the vault is an address, not a credential. See
+[`docs/judge-answers.md`](docs/judge-answers.md) for the full "compromised HR key" answer.
 
 ## Quick start — the mock demo
 

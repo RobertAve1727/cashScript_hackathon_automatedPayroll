@@ -82,6 +82,23 @@ export function buildPaySalaryTransaction(options: BuildPaySalaryTransactionOpti
     monthlyAllowance: commitment.monthlyAllowance,
     taxPerPeriod: commitment.taxPerPeriod,
   });
+
+  // The treasury must keep a strictly positive remainder. A zero-amount
+  // CashToken output is invalid — the same rule that makes the BIR output
+  // disappear when there is no tax (see `outputLayoutFor` below) — but here
+  // it cannot be handled by dropping the output: the covenant requires the
+  // treasury change at a fixed index. Worse, the failure is silent in the
+  // wrong direction: libauth drops the whole token prefix when encoding a
+  // zero-amount output, so `send()` would pass the local VM proof and the
+  // broadcast bytes would then be rejected on chain. Catch it here, where the
+  // message can say what to do about it.
+  if (treasuryUtxo.token.amount <= deductions.totalDrawn) {
+    throw new Error(
+      `buildPaySalaryTransaction: the treasury holds ${treasuryUtxo.token.amount} ePHP units but this period draws ` +
+        `${deductions.totalDrawn}; the covenant requires a strictly positive remainder, so top the treasury up ` +
+        `(or use sweepLapsedNca to recover a final balance)`,
+    );
+  }
   const layout = outputLayoutFor(commitment.taxPerPeriod);
 
   const advancedCommitment = encodeCommitment({
@@ -157,8 +174,9 @@ export function buildPaySalaryTransaction(options: BuildPaySalaryTransactionOpti
 
   // The treasury, re-created with the exact ePHP remainder and at least its
   // original satoshis.
-  const treasuryChange =
-    treasuryUtxo.token.amount - deductions.net - deductions.sssTotal - deductions.phicTotal - deductions.hdmfTotal - deductions.tax;
+  // `totalDrawn` is that same five-way sum, computed once in the domain layer
+  // — re-spelling it here is how the two drift apart.
+  const treasuryChange = treasuryUtxo.token.amount - deductions.totalDrawn;
 
   builder.addOutput({
     to: hexToBin(treasury.lockingBytecode),

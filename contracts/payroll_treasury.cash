@@ -39,10 +39,14 @@ pragma cashscript ^0.13.0;
  * Whoever holds the category's minting NFT — HR — can mint a record carrying
  * ANY payeePkh, so a compromised HR minting key can direct funds to a forged
  * employment record through a perfectly lawful-looking payroll run. That is
- * the deliberate design boundary, not an oversight. It cannot be closed by
- * also pinning the vault's address here, because the dependency is circular:
+ * the deliberate design boundary, not an oversight. Pinning the vault's
+ * address here would not close it: a forged record minted INTO the vault is
+ * paid exactly like a genuine one, because this covenant cannot tell a
+ * genuine record of the trusted category from a forged one — see the second
+ * CONTRAST case in `tests/infrastructure/esahod/genesis.test.ts`, which
+ * drains 60% of a treasury that way. (Pinning is also awkward in practice:
  * the vault must be deployed knowing `treasuryLock`, so the treasury cannot
- * be deployed knowing `vaultLock`. What the covenant DOES guarantee is that
+ * be deployed knowing `vaultLock`.) What the covenant DOES guarantee is that
  * every record of the trusted category is paid exactly by the statutes below
  * — the mint is the only doorway, and hardening it is operational, not
  * script-level: `src/infrastructure/blockchain/esahod/genesis.ts` mints every
@@ -54,9 +58,10 @@ pragma cashscript ^0.13.0;
  * exactly that) reopens this hole, and `tests/infrastructure/esahod/
  * genesis.test.ts` for the forged-mint attack shown working when the baton
  * survives, and failing to even exist once it doesn't. If new hires must be
- * enrollable after genesis, the correct extension is a baton held inside its
- * own covenant that can only emit NFTs whose lockingBytecode equals the
- * vault — never a baton returned to a plain key.
+ * enrollable after genesis, a baton covenant must constrain WHAT is minted
+ * (a commitment pre-committed by a separate key, or co-signed by the
+ * employee) — constraining only where the NFT lands is not enough, as that
+ * same test file demonstrates.
  *
  * ── PRIVATE SECTOR, NOT GOVERNMENT ────────────────────────────────────────
  * SSS (RA 11199) replaces GSIS. The difference is structural, not cosmetic:

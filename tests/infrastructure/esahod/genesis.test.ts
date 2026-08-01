@@ -9,7 +9,21 @@ import {
   encodeCommitment,
 } from '../../../src/domain/index.js';
 import { buildGenesisEmploymentTransaction } from '../../../src/infrastructure/blockchain/esahod/genesis.js';
-import { EMPLOYMENT_CATEGORY, employeePayeePkh, hexToBytes } from '../../support/esahod.js';
+import { buildPaySalaryTransaction } from '../../../src/infrastructure/blockchain/esahod/payroll-transaction.js';
+import {
+  EMPLOYMENT_CATEGORY,
+  GENESIS_TIME,
+  PERIOD_SECONDS,
+  birPkh,
+  employeePayeePkh,
+  feePayer,
+  feePayerLockingBytecode,
+  fundScenario,
+  hdmfPkh,
+  hexToBytes,
+  phicPkh,
+  sssPkh,
+} from '../../support/esahod.js';
 
 /**
  * Proves the fix for the CRITICAL finding from the security review round:
@@ -158,4 +172,68 @@ describe('genesis employment minting — closing the forgery hole', () => {
       // fixed version never produces the first output that made this possible.
     },
   );
+
+  it('CONTRAST 2: a baton restricted to minting only INTO the vault still drains the treasury', async () => {
+    // An earlier draft of this file, of payroll_treasury.cash and of the
+    // README all recommended the same "correct extension" for post-genesis
+    // hiring: keep the baton, but inside a covenant that may only emit NFTs
+    // whose lockingBytecode equals the vault. This test is why that advice
+    // was removed.
+    //
+    // Such a covenant constrains WHERE a forged record lands. It cannot
+    // constrain what the record CLAIMS. EmploymentVault.payroll() checks only
+    // that input 0 is the treasury, and paySalary reads the commitment's
+    // salary and payee as truth — so a forged record sitting in the vault is
+    // paid exactly like a genuine one. Landing in the vault is not a
+    // credential; it is an address.
+    const scenario = fundScenario(FIXTURE_ANALYST);
+    const { provider, deployment, treasuryUtxo, feeUtxo } = scenario;
+    const attackerPayee = Uint8Array.from({ length: 20 }, () => 0xbe);
+
+    // Inflated, but still within what the treasury can cover — so the only
+    // question under test is whether the covenant objects to the CONTENT.
+    const forgedCommitment = commitmentForEmployee(
+      { ...FIXTURE_ANALYST, monthlyBasic: 600_000_000n },
+      { payeePkh: attackerPayee, nextPeriod: 0, endPeriod: 32_000 },
+    );
+    const forgedUtxo = randomUtxo({
+      satoshis: 1_000n,
+      token: {
+        amount: 0n,
+        category: EMPLOYMENT_CATEGORY,
+        nft: { capability: 'mutable', commitment: commitmentToHex(encodeCommitment(forgedCommitment)) },
+      },
+    });
+    // The mint lands at the vault — the single thing the recommended covenant
+    // would have enforced.
+    provider.addUtxo(deployment.vault.address, forgedUtxo);
+
+    const tx = buildPaySalaryTransaction({
+      provider,
+      treasury: deployment.treasury,
+      vault: deployment.vault,
+      treasuryUtxo,
+      nftUtxo: forgedUtxo,
+      feeUtxos: [feeUtxo],
+      feeSigner: feePayer,
+      feeChangeAddress: feePayerLockingBytecode,
+      remitConfig: { sssPkh, phicPkh, hdmfPkh, birPkh },
+      genesisTime: GENESIS_TIME,
+      periodSeconds: PERIOD_SECONDS,
+    });
+
+    // The BCH VM accepts it. Every require() in both covenants is satisfied.
+    await expect(tx.send()).resolves.toBeDefined();
+
+    // 299_775_340 units to the attacker's own pkh, against 1_606_590 for the
+    // genuine record — 60% of the treasury in a single period.
+    expect(tx.outputs[0]?.token?.amount).toBe(299_775_340n);
+    const [after] = await provider.getUtxos(deployment.treasury.address);
+    expect(after?.token?.amount).toBe(500_000_000n - 300_411_500n);
+
+    // The conclusion the docs now carry: a baton covenant has to constrain
+    // what is minted (a pre-committed or co-signed commitment), not merely
+    // where it lands. Destroying the minting authority at genesis remains the
+    // only guarantee this codebase actually implements.
+  });
 });

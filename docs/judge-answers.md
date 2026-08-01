@@ -174,13 +174,15 @@ asks to change their registered payroll bank account.
 
 **"What if the HR key is compromised?" — the honest answer.** The minting baton is the root of
 trust, and this repository says so in its own comments rather than waiting for a judge to find
-it: `payroll_treasury.cash:37–50` states plainly that whoever holds the Employment NFT category's
+it: `payroll_treasury.cash:37–64` states plainly that whoever holds the Employment NFT category's
 minting key can mint a record naming *any* `payeePkh`, and have it paid through a perfectly
 lawful-looking payroll run, because the treasury only verifies that a record belongs to the
-trusted category — not who minted it or why. That is not a bug found late; it's a structural
-consequence of the circular dependency described in the same comment (the vault needs the
-treasury's address to be deployed, so the treasury cannot symmetrically pin the vault's address
-back), and it is the honest boundary of what a script-level guarantee can promise. The `amend()`
+trusted category — not who minted it or why. That is not a bug found late; it is the structural
+consequence of exactly that: a covenant comparing a category can distinguish a *category*, never a
+*record*. Pinning the vault's address in the treasury would not close it either — the second
+`CONTRAST` case in `tests/infrastructure/esahod/genesis.test.ts` drains 60% of a treasury with a
+forged record minted straight *into* the vault — which is why the guarantee has to come from
+destroying the minting authority at genesis rather than from another `require`. The `amend()`
 path has the same single-key exposure today (`hrPkh`, one signature). Production hardening is
 explicit and stated, not hand-waved: the minting NFT and the HR key both belong behind a
 multisig, ideally behind a covenant-guarded minting path so no single stolen key — HR's or

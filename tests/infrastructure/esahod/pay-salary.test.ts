@@ -112,4 +112,32 @@ describe('paySalary — real VM proof against the golden numbers', () => {
       await expect(buildTx(scenario).send()).resolves.toBeDefined();
     });
   });
+
+  describe('the treasury remainder must be strictly positive', () => {
+    // Fixture A draws 2_080_250 units per period. A treasury funded with
+    // exactly that much would leave a zero-amount change output, which is not
+    // a valid CashToken output — and libauth drops the token prefix silently
+    // when encoding one, so the local VM proof would pass while the broadcast
+    // bytes got rejected on chain. The builder has to refuse first.
+    const DRAWN = 2_080_250n;
+
+    it('refuses a treasury holding exactly one period of pay', () => {
+      const scenario = fundScenario(FIXTURE_ANALYST, { treasuryEphp: DRAWN });
+
+      expect(() => buildTx(scenario)).toThrow(/strictly positive remainder/);
+    });
+
+    it('refuses a treasury holding less than one period of pay', () => {
+      const scenario = fundScenario(FIXTURE_ANALYST, { treasuryEphp: DRAWN - 1n });
+
+      expect(() => buildTx(scenario)).toThrow(/strictly positive remainder/);
+    });
+
+    it('accepts a treasury holding exactly one unit more, and the VM agrees', async () => {
+      const scenario = fundScenario(FIXTURE_ANALYST, { treasuryEphp: DRAWN + 1n });
+
+      expect(buildTx(scenario).outputs[6]?.token?.amount).toBe(1n);
+      await expect(buildTx(scenario).send()).resolves.toBeDefined();
+    });
+  });
 });
