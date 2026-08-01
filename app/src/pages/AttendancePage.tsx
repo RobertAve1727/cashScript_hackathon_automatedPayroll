@@ -1,6 +1,7 @@
 import { workedBasisPoints, workedSeconds } from '@domain/attendance/time-record'
 import { useAttendance } from '../chain/attendance-gateway'
 import { useChainState } from '../chain/use-chain'
+import { EmployeeAvatar } from '../components/EmployeeAvatar'
 import { Card, CardHeader, Loading, PageHeader, StatTile } from '../components/ui'
 import { truncateHex } from '../lib/format'
 import { useProofView } from '../view/proof-view'
@@ -92,8 +93,17 @@ export default function AttendancePage() {
                   {days.map((day) => (
                     <tr key={`${day.employeeNo}:${day.workDate}`}>
                       <td>
-                        <h6 className="fw-medium mb-0">{nameOf(day.employeeNo)}</h6>
-                        <span className="fs-12 text-muted">#{day.employeeNo}</span>
+                        <div className="d-flex align-items-center">
+                          <EmployeeAvatar
+                            name={nameOf(day.employeeNo)}
+                            employeeNo={day.employeeNo}
+                            online={day.timeOut === undefined}
+                          />
+                          <div className="ms-2 overflow-hidden">
+                            <h6 className="fw-medium mb-0">{nameOf(day.employeeNo)}</h6>
+                            <span className="fs-12 text-muted">#{day.employeeNo}</span>
+                          </div>
+                        </div>
                       </td>
                       <td>{day.workDate}</td>
                       <td className="font-monospace fs-13">{clockTime(day.timeIn)}</td>

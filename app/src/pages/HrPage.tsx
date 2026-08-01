@@ -7,6 +7,7 @@ import type { AmendResult, EmployeeRecord } from '../chain/gateway'
 import { chainGateway } from '../chain/mock-chain-gateway'
 import { errorMessage, useChainState } from '../chain/use-chain'
 import { CommitmentHex } from '../components/CommitmentHex'
+import { EmployeeAvatar } from '../components/EmployeeAvatar'
 import { Card, CardHeader, ErrorNote, Loading, PageHeader, StatusBadge } from '../components/ui'
 import { bytesToHex, formatPeso, parsePesoInput } from '../lib/format'
 import { useWallet } from '../wallet/paytaca'
@@ -424,7 +425,9 @@ function RosterRow(props: {
   return (
     <div className="border rounded p-3 mb-3">
       <div className="d-flex align-items-center justify-content-between flex-wrap row-gap-3">
-        <div className="me-2">
+        <div className="d-flex align-items-center me-2">
+          <EmployeeAvatar name={employee.name} employeeNo={employee.employeeNo} size="lg" />
+          <div className="ms-2 overflow-hidden">
           <h6 className="mb-1">
             {employee.name} <span className="fs-12 text-muted">#{employee.employeeNo}</span>
           </h6>
@@ -433,6 +436,7 @@ function RosterRow(props: {
             {formatPeso(c.monthlyAllowance)} · tax {formatPeso(c.taxPerPeriod)} · period{' '}
             {c.nextPeriod}/{c.endPeriod}
           </p>
+          </div>
         </div>
         <div className="d-flex align-items-center flex-wrap gap-2">
           <StatusBadge commitment={c} />

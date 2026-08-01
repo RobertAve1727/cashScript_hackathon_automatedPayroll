@@ -6,6 +6,7 @@ import { computeDeductions } from '@domain/statutory/deductions'
 import type { PayrollRun } from '../chain/gateway'
 import { chainGateway } from '../chain/mock-chain-gateway'
 import { errorMessage, useChainState } from '../chain/use-chain'
+import { EmployeeAvatar } from '../components/EmployeeAvatar'
 import { OutputDiagram } from '../components/OutputDiagram'
 import { Card, CardHeader, ErrorNote, Loading, PageHeader, StatTile, StatusBadge } from '../components/ui'
 import { formatEphp, formatPeso, truncateHex } from '../lib/format'
@@ -165,10 +166,15 @@ export default function TreasurerPage() {
                     return (
                       <tr key={employee.employeeNo}>
                         <td>
-                          <h6 className="fw-medium mb-0">{employee.name}</h6>
-                          <span className="fs-12 text-muted">
-                            {employee.position} · #{employee.employeeNo}
-                          </span>
+                          <div className="d-flex align-items-center">
+                            <EmployeeAvatar name={employee.name} employeeNo={employee.employeeNo} />
+                            <div className="ms-2 overflow-hidden">
+                              <h6 className="fw-medium mb-0">{employee.name}</h6>
+                              <span className="fs-12 text-muted">
+                                {employee.position} · #{employee.employeeNo}
+                              </span>
+                            </div>
+                          </div>
                         </td>
                         <td>
                           <StatusBadge commitment={c} />
