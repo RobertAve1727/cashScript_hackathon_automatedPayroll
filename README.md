@@ -202,10 +202,21 @@ npx tsx scripts/esahod/03-run-payroll.ts --employee-pkh <hex>
 npx tsx scripts/esahod/04-amend.ts --employee-pkh <hex> --salary 40000
 ```
 
-`01-deploy.ts` runs **two** genesis transactions, not one: a CashTokens category is the txid of
-its transaction's first input, so two categories fundamentally require two distinct funding
-UTXOs — the keeper needs at least two spendable coins before this will work. It writes every
-derived value to `scripts/esahod/deployment.json`, which the later scripts read.
+`01-deploy.ts` runs **two** genesis transactions, not one, and it needs **two coins sitting at
+outpoint index 0** — not merely two coins. A CashTokens category can only be created by spending a
+UTXO whose `vout` is `0`, and the category *is* that outpoint's txid; this is consensus (see
+libauth's `extractGenesisCategories`, which keeps only inputs with `outpointIndex === 0`). A
+change output at `vout 1` mints nothing at all, silently. So claim from the faucet **twice**, or
+make two self-sends, so each coin lands as output 0 of its own transaction. The script checks this
+and refuses with an explanation rather than broadcasting something inert.
+
+Each genesis transaction reserves **output 0 as a keeper-held dust output** — that is the BCMR
+authchain head. BCMR resolves metadata by following output-0 spends from the genesis transaction;
+if the token itself sat at output 0, the first `paySalary` would spend it and the chain would
+follow into an *employee's wallet*, and the token would stop resolving to a name in Paytaca.
+
+`01-deploy.ts` writes every derived value to `scripts/esahod/deployment.json`, which the later
+scripts read.
 
 Run `02-enrol-employees.ts` in the same sitting as `01`. Between those two commands the minting
 baton is live, and a live baton is a treasury-equivalent key (see [the trust
