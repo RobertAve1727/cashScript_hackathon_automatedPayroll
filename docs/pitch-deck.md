@@ -147,7 +147,8 @@ no arithmetic with the number it's checking.
 - **Salary loans** — a third fund an employee can draw against inside the same commitment.
 - **Multisig HR and payroll-officer keys** — the honest fix for the minting-baton trust boundary,
   named in this repo's own contract comments, not discovered by a judge.
-- **Real wallet connect** — a Paytaca/WalletConnect flow for `#/employee`; the CashAddr decoder
-  groundwork already exists in `app/src/wallet/`.
+- **Wallet connect against a live wallet** — the Paytaca/WalletConnect v2 flow for `#/employee`
+  is built (`app/src/wallet/paytaca.ts`: pair, `bch_getAddresses`, decode to `payeePkh`), but it
+  has not yet been run against a real Paytaca wallet on chipnet.
 - **BCMR on mainnet** — publish ePHP's and the Employment NFT category's on-chain metadata
   registry so any wallet renders this payroll legibly, not just this app.

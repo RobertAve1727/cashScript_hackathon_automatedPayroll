@@ -272,12 +272,29 @@ zero duplicated arithmetic. Three hash routes (`#/treasurer`, `#/hr`, `#/employe
 chain gateway ([`app/src/chain/mock-chain-gateway.ts`](app/src/chain/mock-chain-gateway.ts))
 seeded with ₱1,500,000.00 of ePHP and the two fixture employees.
 
-**Wallet connect status, honestly:** [`app/src/wallet/cashaddr.ts`](app/src/wallet/cashaddr.ts)
-is groundwork — a CashAddr decoder for turning an address a wallet like Paytaca hands over into
-the 20-byte `payeePkh` the commitment carries — but no WalletConnect flow is wired up in this
-snapshot, and there is no `VITE_WC_PROJECT_ID` or WalletConnect dependency to configure. Real
-wallet connect is a roadmap item, not a shipped feature; see
-[`docs/pitch-deck.md`](docs/pitch-deck.md).
+**Wallet connect — Paytaca over WalletConnect v2.**
+[`app/src/wallet/paytaca.ts`](app/src/wallet/paytaca.ts) pairs with Paytaca on the `bch`
+namespace (`bch:bchtest`, methods `bch_getAddresses` / `bch_signTransaction` /
+`bch_signMessage`, event `addressesChanged`), calls `bch_getAddresses`, and runs the returned
+address through [`app/src/wallet/cashaddr.ts`](app/src/wallet/cashaddr.ts) to derive the 20-byte
+`payeePkh` the commitment carries. That is the whole onboarding beat: `#/employee` shows the
+decoded PKH with a copy button, and `#/hr`'s issuance form pre-fills from it until HR types over
+it. The two signing methods are requested for future employee-initiated spends — eSahod never
+asks a wallet to sign a payroll transaction, because `paySalary` needs no signature.
+
+Configuration is one optional variable, `VITE_WC_PROJECT_ID` (a free project id from
+[cloud.walletconnect.com](https://cloud.walletconnect.com)) in `app/.env.local` — see
+[`app/.env.example`](app/.env.example). **It is optional on purpose.** With it unset, the connect
+button says so inline and every other thing on every screen still works, including running
+payroll; the SDK is loaded by dynamic `import()` on first click, so an unconfigured build does
+not even ship it (186 kB total, vs. a 424 kB lazy chunk fetched on demand when configured).
+Disconnecting the wallet mid-demo and running payroll anyway is the point, not a caveat.
+
+Honest limits: the flow is written against the installed `@walletconnect/sign-client` v2 type
+definitions but **has not yet been exercised against a live Paytaca wallet on chipnet**, so the
+`bch_getAddresses` response parser deliberately accepts every envelope shape wallets are known to
+use (`string`, `string[]`, `{ address }[]`, `{ addresses }`) and reports the raw payload if it
+sees another. There is no QR renderer — the pairing URI is shown for copy/deep-link instead.
 
 ## Legacy scaffold
 

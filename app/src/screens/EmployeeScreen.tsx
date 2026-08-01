@@ -5,13 +5,29 @@ import { computeDeductions, employerCost } from '@domain/statutory/deductions';
 import { errorMessage, useChainState } from '../chain/use-chain';
 import { Card, Loading, SectionTitle, StatusBadge } from '../components/ui';
 import { formatPeso, formatWhen, truncateHex } from '../lib/format';
+import { cancelPaytaca, connectPaytaca, disconnectPaytaca, useWallet } from '../wallet/paytaca';
 
 /**
- * /employee — the payslip. Every deduction line carries its legal basis, and
+ * /employee — onboarding, then the payslip.
+ *
+ * The wallet card is deliberately the *only* place a wallet appears in eSahod:
+ * connecting hands us an address, we derive the 20-byte payee PKH from it, and
+ * the employee passes that to HR. Nothing downstream needs the wallet again —
+ * `paySalary` carries no signature, so payroll runs whether this card says
+ * connected or not. Below it, every deduction line carries its legal basis and
  * the footer reconciles employer cost against the treasury draw two different
  * ways — to the centavo, because both sides are integer arithmetic on chain.
  */
 export function EmployeeScreen() {
+  return (
+    <div className="space-y-6">
+      <WalletCard />
+      <PayslipSection />
+    </div>
+  );
+}
+
+function PayslipSection() {
   const state = useChainState();
   const [selectedNo, setSelectedNo] = useState<number | null>(null);
 
@@ -188,6 +204,150 @@ export function EmployeeScreen() {
       {payslip}
     </div>
   );
+}
+
+// ── Wallet onboarding ────────────────────────────────────────────────────
+
+/**
+ * Connect Paytaca → derive the payee PKH → hand it to HR. The card is fully
+ * self-contained: with no `VITE_WC_PROJECT_ID` it renders an explanation and a
+ * dead button, and the rest of the screen never notices.
+ */
+function WalletCard() {
+  const wallet = useWallet();
+  const [note, setNote] = useState<string | null>(null);
+
+  const copy = (label: string, text: string): void => {
+    void copyText(text).then((ok) => {
+      setNote(ok ? `${label} copied.` : `Clipboard unavailable — select the ${label} and copy it manually.`);
+    });
+  };
+
+  return (
+    <Card>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <SectionTitle hint="Your wallet is only ever asked for an address. eSahod never asks it to sign a payroll transaction — the covenant does that, unsigned.">
+          Connect your wallet — onboarding
+        </SectionTitle>
+        {wallet.status === 'connected' ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> Paytaca connected
+          </span>
+        ) : null}
+      </div>
+
+      {wallet.status === 'unconfigured' ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" disabled className={`${walletButtonClass} cursor-not-allowed opacity-40`}>
+            Connect Paytaca
+          </button>
+          <p className="max-w-xl text-xs text-amber-300/90">{wallet.detail}</p>
+        </div>
+      ) : null}
+
+      {wallet.status === 'disconnected' ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => void connectPaytaca()} className={walletButtonClass}>
+            Connect Paytaca
+          </button>
+          <p className="max-w-xl text-xs text-slate-400">
+            {wallet.detail ?? 'Pairs over WalletConnect v2 on the bch:bchtest namespace, then reads one address.'}
+          </p>
+        </div>
+      ) : null}
+
+      {wallet.status === 'connecting' ? (
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm text-slate-300">{wallet.detail}</span>
+            <button type="button" onClick={cancelPaytaca} className={walletGhostClass}>
+              Cancel
+            </button>
+          </div>
+          {wallet.uri === null ? null : (
+            <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+              <p className="mb-2 text-xs text-slate-500">
+                Pairing URI — open it on this device, or paste it into Paytaca’s WalletConnect
+                scanner.
+              </p>
+              <p className="font-mono text-[11px] break-all text-slate-400">{wallet.uri}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => copy('Pairing URI', wallet.uri ?? '')}
+                  className={walletGhostClass}
+                >
+                  Copy pairing URI
+                </button>
+                <a href={wallet.uri} className={walletGhostClass}>
+                  Open in Paytaca
+                </a>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      {wallet.status === 'connected' ? (
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="rounded-lg border border-slate-800 bg-slate-950/60 p-3">
+              <p className="text-xs text-slate-500">Address from Paytaca</p>
+              <p className="mt-1 font-mono text-xs break-all text-slate-300">
+                {wallet.account.address}
+              </p>
+            </div>
+            <div className="rounded-lg border border-flag-blue/40 bg-flag-blue/10 p-3">
+              <p className="text-xs text-blue-200">
+                Decoded payee PKH — bytes 0–19 of the employment commitment
+              </p>
+              <p className="mt-1 font-mono text-xs break-all text-flag-yellow">
+                {wallet.account.pkhHex}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => copy('Payee PKH', wallet.account.pkhHex)}
+              className={walletButtonClass}
+            >
+              Copy PKH for HR
+            </button>
+            <button type="button" onClick={() => void disconnectPaytaca()} className={walletGhostClass}>
+              Disconnect
+            </button>
+            <p className="text-xs text-slate-500">
+              Already pre-filled on the HR screen’s issuance form.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {note ? <p className="mt-3 text-xs text-emerald-300">{note}</p> : null}
+
+      <p className="mt-3 border-t border-slate-800 pt-3 text-xs text-slate-500">
+        Disconnect and run payroll anyway — <span className="text-slate-400">paySalary</span> is
+        signature-free, so nobody, wallet or not, holds the button.
+      </p>
+    </Card>
+  );
+}
+
+const walletButtonClass =
+  'rounded-lg bg-flag-blue px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-800';
+
+const walletGhostClass =
+  'rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:bg-slate-800';
+
+/** Best-effort clipboard write — false when the browser refuses (http, focus). */
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function Line(props: {

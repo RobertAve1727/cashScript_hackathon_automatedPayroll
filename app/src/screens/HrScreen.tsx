@@ -13,6 +13,7 @@ import { errorMessage, useChainState } from '../chain/use-chain';
 import { CommitmentHex } from '../components/CommitmentHex';
 import { Card, ErrorNote, Loading, SectionTitle, StatusBadge } from '../components/ui';
 import { bytesToHex, formatPeso, parsePesoInput } from '../lib/format';
+import { useWallet } from '../wallet/paytaca';
 
 /**
  * /hr — where employment records are born and amended. Issuance mints a
@@ -68,6 +69,9 @@ export function HrScreen() {
 
 // ── Issue-employment form ────────────────────────────────────────────────
 
+/** Stand-in payee PKH so the form demos end-to-end with no wallet connected. */
+const DEMO_PKH = '7f3a1c5e9b0d2f4a6c8e0a1b3c5d7e9f0a1b3c5d';
+
 type EncodeAttempt =
   | { readonly ok: true; readonly hex: string }
   | { readonly ok: false; readonly problem: string };
@@ -78,9 +82,20 @@ function IssueForm(props: { nextEmployeeNo: number }) {
   const [basicText, setBasicText] = useState('18,000.00');
   const [allowanceText, setAllowanceText] = useState('0.00');
   const [taxText, setTaxText] = useState('0.00');
-  const [pkhText, setPkhText] = useState('7f3a1c5e9b0d2f4a6c8e0a1b3c5d7e9f0a1b3c5d');
   const [endText, setEndText] = useState('24');
   const [issued, setIssued] = useState<string | null>(null);
+
+  /**
+   * The payee PKH follows the wallet the employee connected on their own
+   * screen, until HR types over it. Storing only the override (rather than
+   * syncing state in an effect) means the field can never go stale against the
+   * wallet, and HR's own edit always wins.
+   */
+  const wallet = useWallet();
+  const walletPkhHex = wallet.status === 'connected' ? wallet.account.pkhHex : null;
+  const [pkhOverride, setPkhOverride] = useState<string | null>(null);
+  const pkhText = pkhOverride ?? walletPkhHex ?? DEMO_PKH;
+  const followingWallet = pkhOverride === null && walletPkhHex !== null;
 
   const attempt: EncodeAttempt = useMemo(() => {
     const basic = parsePesoInput(basicText);
@@ -156,9 +171,29 @@ function IssueForm(props: { nextEmployeeNo: number }) {
           <Field label="End period (of 24 / year)">
             <input value={endText} onChange={(e) => setEndText(e.target.value)} className={inputClass} />
           </Field>
-          <Field label="Payee PKH (20-byte hex — the employee's wallet)" className="sm:col-span-2">
-            <input value={pkhText} onChange={(e) => setPkhText(e.target.value)} className={`${inputClass} font-mono`} />
-          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Payee PKH (20-byte hex — the employee's wallet)">
+              <input
+                value={pkhText}
+                onChange={(e) => setPkhOverride(e.target.value)}
+                className={`${inputClass} font-mono`}
+              />
+            </Field>
+            {followingWallet ? (
+              <p className="mt-1 text-xs text-emerald-300">
+                Pre-filled from the Paytaca wallet connected on the Employee screen.
+              </p>
+            ) : null}
+            {!followingWallet && walletPkhHex !== null ? (
+              <button
+                type="button"
+                onClick={() => setPkhOverride(null)}
+                className="mt-1 text-xs font-semibold text-blue-300 underline-offset-2 hover:underline"
+              >
+                Use the connected wallet’s PKH instead
+              </button>
+            ) : null}
+          </div>
           <div className="sm:col-span-2">
             <button
               type="button"
