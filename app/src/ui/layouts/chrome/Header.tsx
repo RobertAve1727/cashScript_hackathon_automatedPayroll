@@ -1,26 +1,29 @@
 import { Fragment, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ESAHOD_ROUTES, HOME_ROUTE } from '@ui/domain/navigation/esahodNavigation'
+import { Link, useNavigate } from 'react-router-dom'
+import { signOut, useSession } from '../../../auth/session'
+import { ROLE_LABEL } from '../../../auth/users'
+import { homeRouteFor, LOGIN_ROUTE } from '@ui/domain/navigation/esahodNavigation'
 import { useAppServices } from '@ui/providers/AppServicesProvider'
 import type { ThemeMode } from '@ui/domain/theme/ThemeSettings'
 
 /**
  * The top bar, in the SmartHR template's own markup.
  *
- * Trimmed the same way as the sidebar: the original carried a CRM mega-menu,
- * a global search, chat/mail/notification dropdowns and a profile menu, all
- * pointing at routes this app does not ship. What remains is what still does
- * something — the sidebar collapse (`#toggle_btn` and `#mobile_btn`, both
- * driven by the template's own script.js) and a working light/dark switch.
+ * Trimmed the same way as the sidebar: the original carried a CRM mega-menu, a
+ * global search and chat/mail/notification dropdowns, all pointing at routes
+ * this app does not ship. What remains is what still does something — the
+ * sidebar collapse (`#toggle_btn` and `#mobile_btn`, driven by the template's
+ * own script.js), a working light/dark switch, and the signed-in user.
  *
- * The switch is wired to the template's ThemeCustomizationService rather than
- * toggling a class directly, so the choice persists to localStorage and is
- * restored before first paint by theme-script.js — exactly as the customiser
- * panel did.
+ * The switch goes through the template's ThemeCustomizationService rather than
+ * toggling a class, so the choice persists and is restored before first paint
+ * by theme-script.js — exactly as the customiser panel did.
  */
 export default function Header() {
   const { theme } = useAppServices()
   const [mode, setMode] = useState<ThemeMode>(() => theme.getSettings().theme)
+  const user = useSession()
+  const navigate = useNavigate()
 
   // The service is the source of truth; theme-script.js may have restored a
   // persisted value before React mounted.
@@ -34,15 +37,20 @@ export default function Header() {
     setMode(next)
   }
 
+  const leave = (): void => {
+    signOut()
+    navigate(LOGIN_ROUTE, { replace: true })
+  }
+
   return (
     <Fragment>
       <div className="header">
         <div className="main-header">
           <div className="header-left">
-            <Link to={HOME_ROUTE} className="logo">
+            <Link to={homeRouteFor(user?.role ?? null)} className="logo">
               <img alt="eSahod" src="/build/img/logo.svg" />
             </Link>{' '}
-            <Link to={HOME_ROUTE} className="dark-logo">
+            <Link to={homeRouteFor(user?.role ?? null)} className="dark-logo">
               <img alt="eSahod" src="/build/img/logo-white.svg" />
             </Link>
           </div>{' '}
@@ -62,17 +70,7 @@ export default function Header() {
                   Philippine private sector — SSS, PhilHealth, Pag-IBIG, BIR
                 </span>
               </div>{' '}
-              <div className="d-flex align-items-center">
-                {ESAHOD_ROUTES.map((route) => (
-                  <Link
-                    key={route.path}
-                    to={route.path}
-                    className="btn btn-menubar me-2 d-none d-lg-inline-flex"
-                    title={route.title}
-                  >
-                    <i className={route.icon}></i>
-                  </Link>
-                ))}{' '}
+              <div className="d-flex align-items-center gap-2">
                 <button
                   type="button"
                   className="btn btn-menubar"
@@ -81,6 +79,22 @@ export default function Header() {
                 >
                   <i className={mode === 'dark' ? 'ti ti-sun' : 'ti ti-moon'}></i>
                 </button>
+                {user ? (
+                  <Fragment>
+                    <span className="d-none d-sm-block text-end lh-sm">
+                      <span className="d-block fw-medium fs-13">{user.name}</span>
+                      <span className="d-block fs-11 text-muted">{ROLE_LABEL[user.role]}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-menubar"
+                      onClick={leave}
+                      title="Sign out"
+                    >
+                      <i className="ti ti-logout"></i>
+                    </button>
+                  </Fragment>
+                ) : null}
               </div>
             </div>
           </div>

@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 
 import { EMPLOYMENT_STATUS_ACTIVE } from '@domain/payroll/types'
 import type { EmploymentCommitment } from '@domain/payroll/commitment'
+import { homeRouteFor } from '@ui/domain/navigation/esahodNavigation'
+import { useSession } from '../auth/session'
 
 /**
  * The handful of primitives the three screens share, written in the design
@@ -16,6 +18,10 @@ export function PageHeader(props: {
   section: string
   children?: ReactNode
 }) {
+  // The home crumb goes to whatever this role's landing page is, so it is
+  // never a link the signed-in user is not allowed to follow.
+  const user = useSession()
+
   return (
     <div className="d-md-flex d-block align-items-center justify-content-between page-breadcrumb mb-3">
       <div className="my-auto mb-2">
@@ -23,7 +29,7 @@ export function PageHeader(props: {
         <nav>
           <ol className="breadcrumb mb-0">
             <li className="breadcrumb-item">
-              <Link to="/treasurer">
+              <Link to={homeRouteFor(user?.role ?? null)}>
                 <i className="ti ti-smart-home"></i>
               </Link>
             </li>

@@ -39,7 +39,7 @@ export default function HrPage() {
 
   return (
     <div className="content">
-      <PageHeader title="Employment Records" section="Payroll" />
+      <PageHeader title="Employment Records" section="Human Resources" />
 
       <IssueForm nextEmployeeNo={1000 + employees.length + 1} />
 

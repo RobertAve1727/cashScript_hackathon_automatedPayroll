@@ -1,62 +1,62 @@
 import type { ComponentType } from 'react'
+import type { Role } from '../auth/users'
 import type { PageMetadata } from '@ui/domain/page/PageMetadata'
-import { ESAHOD_ROUTES } from '@ui/domain/navigation/esahodNavigation'
+import { ESAHOD_ROUTES, LOGIN_ROUTE } from '@ui/domain/navigation/esahodNavigation'
 
 /**
- * The three eSahod screens, as the shell's page metadata.
+ * The eSahod screens, as the shell's page metadata.
  *
- * The SmartHR original generated this file from 283 mirrored HTML pages; here
- * it is hand-written, because there are three pages and each one is a real
- * component rather than extracted markup. The shape is unchanged so `PageHost`
- * works untouched.
+ * The SmartHR original generated this from 283 mirrored HTML pages; here it is
+ * hand-written, because each page is a real component rather than extracted
+ * markup. The shape is unchanged so `PageHost` works untouched.
  *
- * `scripts` and `stylesheets` are empty on every page: the only vendor bundles
- * these screens need are the ones in `GLOBAL_SCRIPTS`, and every stylesheet is
- * already in index.html. Both lists exist so a screen that later wants, say,
- * ApexCharts can name it here and get the template's load-once semantics.
+ * `scripts` and `stylesheets` are empty everywhere: the only vendor bundles
+ * these screens need are in `GLOBAL_SCRIPTS`, and every stylesheet is already
+ * in index.html. Both fields stay so a screen that later wants ApexCharts can
+ * name it and get the template's load-once semantics.
  */
 export interface PageRoute extends PageMetadata {
-  /** Whether the page renders the footer inside its wrapper. */
   readonly hasFooter: boolean
-  /** Stylesheets the page needs beyond the global ones, in cascade order. */
   readonly stylesheets: readonly string[]
+  /** Empty means public — the sign-in screen. */
+  readonly roles: readonly Role[]
   readonly load: () => Promise<{ default: ComponentType }>
 }
 
-const [treasury, hr, employee] = ESAHOD_ROUTES
+const LOADERS: Readonly<Record<string, () => Promise<{ default: ComponentType }>>> = {
+  '/my/time': () => import('../pages/TimeClockPage'),
+  '/my/payslips': () => import('../pages/EmployeePage'),
+  '/hr/employees': () => import('../pages/HrPage'),
+  '/hr/attendance': () => import('../pages/AttendancePage'),
+  '/hr/schedule': () => import('../pages/PaySchedulePage'),
+  '/treasurer': () => import('../pages/TreasurerPage'),
+}
 
 export const PAGE_ROUTES: readonly PageRoute[] = [
   {
-    slug: 'treasurer',
-    route: treasury.path,
-    component: 'TreasurerPage',
-    title: `${treasury.title} | eSahod`,
-    shell: 'main',
+    slug: 'login',
+    route: LOGIN_ROUTE,
+    component: 'LoginPage',
+    title: 'Sign in | eSahod',
+    // No chrome: the sign-in screen owns its whole page, exactly as the
+    // template's own authentication screens do.
+    shell: 'bare',
+    hasFooter: false,
+    scripts: [],
+    stylesheets: [],
+    roles: [],
+    load: () => import('../pages/LoginPage'),
+  },
+  ...ESAHOD_ROUTES.map((route) => ({
+    slug: route.path.replace(/^\//, '').replace(/\//g, '-'),
+    route: route.path,
+    component: route.title.replace(/\s+/g, ''),
+    title: `${route.title} | eSahod`,
+    shell: 'main' as const,
     hasFooter: true,
     scripts: [],
     stylesheets: [],
-    load: () => import('../pages/TreasurerPage'),
-  },
-  {
-    slug: 'hr',
-    route: hr.path,
-    component: 'HrPage',
-    title: `${hr.title} | eSahod`,
-    shell: 'main',
-    hasFooter: true,
-    scripts: [],
-    stylesheets: [],
-    load: () => import('../pages/HrPage'),
-  },
-  {
-    slug: 'employee',
-    route: employee.path,
-    component: 'EmployeePage',
-    title: `${employee.title} | eSahod`,
-    shell: 'main',
-    hasFooter: true,
-    scripts: [],
-    stylesheets: [],
-    load: () => import('../pages/EmployeePage'),
-  },
+    roles: route.roles,
+    load: LOADERS[route.path]!,
+  })),
 ]

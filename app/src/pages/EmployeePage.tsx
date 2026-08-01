@@ -3,6 +3,7 @@ import { Fragment, useState, type ReactNode } from 'react'
 import { computeDeductions, employerCost } from '@domain/statutory/deductions'
 
 import { errorMessage, useChainState } from '../chain/use-chain'
+import { useSession } from '../auth/session'
 import { Card, CardHeader, Loading, PageHeader, StatusBadge } from '../components/ui'
 import { formatPeso, formatWhen, truncateHex } from '../lib/format'
 import { cancelPaytaca, connectPaytaca, disconnectPaytaca, useWallet } from '../wallet/paytaca'
@@ -21,7 +22,7 @@ import { cancelPaytaca, connectPaytaca, disconnectPaytaca, useWallet } from '../
 export default function EmployeePage() {
   return (
     <div className="content">
-      <PageHeader title="My Payslips" section="Payroll" />
+      <PageHeader title="My Payslips" section="My Work" />
       <WalletCard />
       <PayslipSection />
     </div>
@@ -30,15 +31,20 @@ export default function EmployeePage() {
 
 function PayslipSection() {
   const state = useChainState()
-  const [selectedNo, setSelectedNo] = useState<number | null>(null)
+  const user = useSession()
 
   if (!state) return <Loading />
   const { employees } = state
-  const selected = employees.find((employee) => employee.employeeNo === selectedNo) ?? employees[0]
+  // An employee sees their own record and only their own — the account is
+  // bound to an employment NFT by number, so there is no picker to wander off.
+  const selected = employees.find((employee) => employee.employeeNo === user?.employeeNo)
   if (!selected) {
     return (
       <Card>
-        <div className="card-body text-muted">No employment NFTs issued.</div>
+        <div className="card-body text-muted">
+          No employment record is linked to this account yet — HR issues it from Employment
+          Records.
+        </div>
       </Card>
     )
   }
@@ -193,25 +199,7 @@ function PayslipSection() {
     )
   }
 
-  return (
-    <Fragment>
-      <div className="d-flex flex-wrap gap-2 mb-3">
-        {employees.map((employee) => (
-          <button
-            key={employee.employeeNo}
-            type="button"
-            onClick={() => setSelectedNo(employee.employeeNo)}
-            className={`btn btn-sm ${
-              employee.employeeNo === selected.employeeNo ? 'btn-primary' : 'btn-outline-light'
-            }`}
-          >
-            {employee.name}
-          </button>
-        ))}
-      </div>
-      {payslip}
-    </Fragment>
-  )
+  return <Fragment>{payslip}</Fragment>
 }
 
 // ── Wallet onboarding ────────────────────────────────────────────────────
