@@ -1,5 +1,31 @@
 {
+  "name": "automated-payroll",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Automated BCH payroll — clean architecture reference implementation on CashScript",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "payroll": "tsx src/main/cli.ts",
+    "contracts:compile": "tsx scripts/compile-contracts.ts",
+    "build": "npm run contracts:compile && tsc -p tsconfig.build.json",
+    "start": "node dist/main/cli.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "verify": "npm run typecheck && npm run test"
+  },
   "dependencies": {
+    "@bitauth/libauth": "^3.1.0-next.8",
+    "cashc": "^0.13.2",
     "cashscript": "^0.13.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "tsx": "^4.23.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
   }
 }

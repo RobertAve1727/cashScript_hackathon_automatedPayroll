@@ -23,3 +23,9 @@ Thumbs.db
 dist/
 build/
 *.log
+
+# Local payroll data (JSON file persistence)
+.payroll-data/
+
+# Compiled contract artifacts are committed on purpose — see README
+# ("Why artifacts are in git"). Do not add artifacts/ here.
