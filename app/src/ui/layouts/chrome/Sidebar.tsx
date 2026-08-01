@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useMenuState } from '../useMenuState'
 import { useSession } from '../../../auth/session'
 import { homeRouteFor, sectionsFor } from '@ui/domain/navigation/esahodNavigation'
-import { ROLE_LABEL } from '../../../auth/users'
+import { displayName, ROLE_LABEL } from '../../../auth/users'
 
 /**
  * The vertical sidebar, in the SmartHR template's own markup.
@@ -41,10 +41,10 @@ export default function Sidebar() {
           <div className="sidebar-header p-3 pb-0 pt-2">
             <div className="text-center rounded bg-light p-2 mb-3 sidebar-profile d-flex align-items-center">
               <div className="avatar avatar-md bg-primary-transparent rounded-circle d-flex align-items-center justify-content-center flex-shrink-0">
-                <span className="fw-medium">{initials(user.name)}</span>
+                <span className="fw-medium">{initials(displayName(user))}</span>
               </div>
               <div className="text-start sidebar-profile-info ms-2 overflow-hidden">
-                <h6 className="fs-12 fw-normal mb-0 text-truncate">{user.name}</h6>
+                <h6 className="fs-12 fw-normal mb-0 text-truncate">{displayName(user)}</h6>
                 <p className="fs-10 mb-0 text-truncate">{ROLE_LABEL[user.role]}</p>
               </div>
             </div>

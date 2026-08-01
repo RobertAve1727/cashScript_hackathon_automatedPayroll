@@ -13,7 +13,7 @@
  * Run: npx tsx scripts/esahod/02-enrol-employees.ts
  */
 import { binToHex, encodeCashAddress, hexToBin } from '@bitauth/libauth';
-import { commitmentForEmployee, commitmentToHex, encodeCommitment, FIXTURES } from '../../src/domain/index.js';
+import { commitmentForEmployee, commitmentToHex, encodeCommitment, fixtureFullName, FIXTURES } from '../../src/domain/index.js';
 import { buildGenesisEmploymentTransaction } from '../../src/infrastructure/blockchain/esahod/genesis.js';
 import { chipnetProvider, keyFromWif, pkhOf, requireEnv, toBytes20 } from './lib/config.js';
 import { readDeployment } from './lib/config.js';
@@ -57,7 +57,7 @@ async function main(): Promise<void> {
         }),
       ),
     ),
-    name: fixture.name,
+    name: fixtureFullName(fixture),
   }));
 
   const builder = buildGenesisEmploymentTransaction({

@@ -24,9 +24,37 @@ export type Role = 'employee' | 'hr' | 'treasurer';
  */
 export const DEMO_PASSWORD = 'esahod2026';
 
-export interface User {
+/**
+ * A person's name, in the parts Philippine payroll actually uses.
+ *
+ * One `full_name` string cannot be taken apart again reliably — "Jun Dela
+ * Cruz" has a two-word surname, and no split-on-space survives that. Every
+ * statutory form (SSS R-1A, PhilHealth ER2, BIR 2316) asks for the parts
+ * separately, so they are stored separately and joined for display rather
+ * than the reverse.
+ *
+ * Middle name is optional and present because PH forms ask for it; it is not
+ * a middle *initial*, and it is not required to file anything here.
+ */
+export interface PersonName {
+  readonly firstName: string;
+  readonly middleName?: string;
+  readonly lastName: string;
+}
+
+/** "Maria Santos", or "Maria C. Santos" when a middle name is recorded. */
+export function displayName(person: PersonName): string {
+  const middle = person.middleName?.trim();
+  return [person.firstName, middle, person.lastName].filter(Boolean).join(' ');
+}
+
+/** Surname-first, for rosters and anything sorted. */
+export function sortableName(person: PersonName): string {
+  return `${person.lastName}, ${person.firstName}`;
+}
+
+export interface User extends PersonName {
   readonly id: string;
-  readonly name: string;
   readonly role: Role;
   readonly title: string;
   readonly email: string;
@@ -40,9 +68,11 @@ export interface User {
 export const USERS: readonly User[] = [
   {
     id: 'maria',
+    firstName: 'Maria',
+    middleName: 'Cruz',
+    lastName: 'Santos',
     email: 'maria.santos@esahod.ph',
     password: DEMO_PASSWORD,
-    name: 'Maria Santos',
     role: 'employee',
     title: 'Systems Analyst',
     employeeNo: 1001,
@@ -50,9 +80,10 @@ export const USERS: readonly User[] = [
   },
   {
     id: 'jun',
+    firstName: 'Jun',
+    lastName: 'Dela Cruz',
     email: 'jun.delacruz@esahod.ph',
     password: DEMO_PASSWORD,
-    name: 'Jun Dela Cruz',
     role: 'employee',
     title: 'Warehouse Associate',
     employeeNo: 1002,
@@ -60,18 +91,21 @@ export const USERS: readonly User[] = [
   },
   {
     id: 'rosa',
+    firstName: 'Rosa',
+    middleName: 'Bautista',
+    lastName: 'Villanueva',
     email: 'rosa.villanueva@esahod.ph',
     password: DEMO_PASSWORD,
-    name: 'Rosa Villanueva',
     role: 'hr',
     title: 'HR Officer',
     blurb: 'Issue and amend employment records, review attendance, choose the pay cadence.',
   },
   {
     id: 'ben',
+    firstName: 'Ben',
+    lastName: 'Aquino',
     email: 'ben.aquino@esahod.ph',
     password: DEMO_PASSWORD,
-    name: 'Ben Aquino',
     role: 'treasurer',
     title: 'Payroll Officer',
     blurb: 'Fund the treasury and run payroll — a role with no power to redirect a peso.',

@@ -1,4 +1,4 @@
-import { FIXTURES, commitmentFromHex, commitmentToHex, decodeCommitment } from '@domain/index'
+import { FIXTURES, fixtureFullName, commitmentFromHex, commitmentToHex, decodeCommitment } from '@domain/index'
 import type { AmendAction, ChainGateway, EmployeeRecord, PayrollRun, TreasurySnapshot } from './gateway'
 
 /**
@@ -127,7 +127,7 @@ export class ChipnetChainGateway implements ChainGateway {
 
         return {
           employeeNo: commitment.employeeNo,
-          name: fixture?.name ?? `Employee #${commitment.employeeNo}`,
+          name: fixture ? fixtureFullName(fixture) : `Employee #${commitment.employeeNo}`,
           position: fixture?.position ?? 'On-chain record',
           commitment,
           commitmentHex: commitmentToHex(commitmentFromHex(hex)),

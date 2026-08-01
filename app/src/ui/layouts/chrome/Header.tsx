@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { signOut, useSession } from '../../../auth/session'
-import { ROLE_LABEL } from '../../../auth/users'
+import { displayName, ROLE_LABEL } from '../../../auth/users'
 import { homeRouteFor, LOGIN_ROUTE } from '@ui/domain/navigation/esahodNavigation'
 import { useAppServices } from '@ui/providers/AppServicesProvider'
 import type { ThemeMode } from '@ui/domain/theme/ThemeSettings'
@@ -158,7 +158,7 @@ export default function Header() {
                       <i className="ti ti-refresh"></i>
                     </button>
                     <span className="d-none d-sm-block text-end lh-sm">
-                      <span className="d-block fw-medium fs-13">{user.name}</span>
+                      <span className="d-block fw-medium fs-13">{displayName(user)}</span>
                       <span className="d-block fs-11 text-muted">{ROLE_LABEL[user.role]}</span>
                     </span>
                     <button

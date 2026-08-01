@@ -102,7 +102,9 @@ type EncodeAttempt =
   | { readonly ok: false; readonly problem: string }
 
 function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) => void }) {
-  const [name, setName] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [middleName, setMiddleName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [position, setPosition] = useState('')
   const [basicText, setBasicText] = useState('18,000.00')
   const [allowanceText, setAllowanceText] = useState('0.00')
@@ -123,6 +125,12 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
   const followingWallet = pkhOverride === null && walletPkhHex !== null
 
   const attempt: EncodeAttempt = useMemo(() => {
+    // A record with no name is not issuable. This is checked first because it
+    // is the failure a person is most likely to cause, and reporting it before
+    // the peso parsing means the message names the field they left empty.
+    if (firstName.trim() === '') return { ok: false, problem: 'First name is required.' }
+    if (lastName.trim() === '') return { ok: false, problem: 'Last name is required.' }
+
     const basic = parsePesoInput(basicText)
     if (basic === null) return { ok: false, problem: 'Basic salary must be a peso amount.' }
     const allowance = parsePesoInput(allowanceText)
@@ -151,7 +159,7 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
     } catch (thrown) {
       return { ok: false, problem: errorMessage(thrown) }
     }
-  }, [basicText, allowanceText, taxText, pkhText, endText, props.nextEmployeeNo])
+  }, [firstName, lastName, basicText, allowanceText, taxText, pkhText, endText, props.nextEmployeeNo])
 
   const issue = (): void => {
     if (!attempt.ok) return
@@ -160,7 +168,7 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
     const tax = parsePesoInput(taxText)
     if (basic === null || allowance === null || tax === null) return
     const record = chainGateway.issue({
-      name: name || 'Unnamed Employee',
+      name: [firstName.trim(), middleName.trim(), lastName.trim()].filter(Boolean).join(' '),
       position,
       payeePkh: commitmentFromHex(pkhText.toLowerCase()),
       monthlyBasic: basic,
@@ -176,7 +184,9 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
     // rather than re-offering the last one. The pay figures stay, because the
     // next hire is usually on similar terms and retyping them is the tedium
     // this screen exists to remove.
-    setName('')
+    setFirstName('')
+    setMiddleName('')
+    setLastName('')
     setPosition('')
   }
 
@@ -209,13 +219,37 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
             <div className="row g-4">
               <div className="col-xl-7">
                 <div className="row g-3">
-              <div className="col-md-6">
-                <Field label="Full name">
+              <div className="col-md-4">
+                <Field label="First name *">
+                  <input
+                    className={`form-control ${firstName.trim() === '' ? 'is-invalid' : ''}`}
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="Ana"
+                    required
+                  />
+                </Field>
+              </div>
+              <div className="col-md-4">
+                {/* Optional, and present because every PH statutory form asks
+                    for it — SSS R-1A, PhilHealth ER2, BIR 2316. */}
+                <Field label="Middle name">
                   <input
                     className="form-control"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="Ana Reyes"
+                    value={middleName}
+                    onChange={(e) => setMiddleName(e.target.value)}
+                    placeholder="Bautista"
+                  />
+                </Field>
+              </div>
+              <div className="col-md-4">
+                <Field label="Last name *">
+                  <input
+                    className={`form-control ${lastName.trim() === '' ? 'is-invalid' : ''}`}
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Reyes"
+                    required
                   />
                 </Field>
               </div>
@@ -307,7 +341,9 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
                   <CommitmentHex hex={attempt.hex} />
                 ) : (
                   <IssueReview
-                    name={name}
+                    firstName={firstName}
+                    middleName={middleName}
+                    lastName={lastName}
                     position={position}
                     basicText={basicText}
                     allowanceText={allowanceText}
@@ -348,7 +384,9 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
 
 /** What is about to be committed, in words — the proof-view-off counterpart. */
 function IssueReview(props: {
-  name: string
+  firstName: string
+  middleName: string
+  lastName: string
   position: string
   basicText: string
   allowanceText: string
@@ -357,7 +395,7 @@ function IssueReview(props: {
   employeeNo: number
 }) {
   const rows: readonly [string, string][] = [
-    ['Employee', props.name.trim() === '' ? 'Unnamed Employee' : props.name],
+    ['Employee', [props.firstName, props.middleName, props.lastName].map((p) => p.trim()).filter(Boolean).join(' ')],
     ['Position', props.position.trim() === '' ? '—' : props.position],
     ['Employee number', `#${props.employeeNo}`],
     ['Monthly basic', `₱${props.basicText}`],

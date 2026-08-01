@@ -61,6 +61,7 @@ export {
   OUTPUT_PAGIBIG,
   OUTPUT_PHILHEALTH,
   OUTPUT_SSS,
+  fixtureFullName,
   outputLayoutFor,
   type FixtureEmployee,
   type OutputLayout,

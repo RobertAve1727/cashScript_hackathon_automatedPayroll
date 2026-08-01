@@ -9,6 +9,7 @@ import {
   EMPLOYMENT_STATUS_ACTIVE,
   EMPLOYMENT_STATUS_INACTIVE,
   FIXTURES,
+  fixtureFullName,
   outputLayoutFor,
 } from '@domain/payroll/types';
 import { computeDeductions } from '@domain/statutory/deductions';
@@ -85,7 +86,7 @@ export class MockChainGateway implements ChainGateway {
       };
       this.employees.push({
         employeeNo: fixture.employeeNo,
-        name: fixture.name,
+        name: fixtureFullName(fixture),
         position: fixture.position,
         commitment: encodeCommitment(record),
         history: [],

@@ -112,7 +112,7 @@ export async function signInAsync(
 
     const { data: profile } = await client
       .from('profiles')
-      .select('id, role, employee_id, full_name')
+      .select('id, role, employee_id, first_name, middle_name, last_name')
       .eq('id', data.user.id)
       .maybeSingle<ProfileRow>()
 
@@ -120,9 +120,15 @@ export async function signInAsync(
     // screens keep their employee numbers and blurbs. The ROLE is the
     // server's, never the fixture's.
     const fixture = USERS.find((entry) => entry.email.toLowerCase() === email.trim().toLowerCase())
+    // The server's stored name parts win when present; the fixture fills the
+    // rest so the screens keep their employee numbers and blurbs.
     const merged: User = {
       id: fixture?.id ?? data.user.id,
-      name: profile?.full_name ?? fixture?.name ?? data.user.email ?? 'User',
+      firstName: profile?.first_name ?? fixture?.firstName ?? (data.user.email ?? 'User').split('@')[0]!,
+      lastName: profile?.last_name ?? fixture?.lastName ?? '',
+      ...(profile?.middle_name ?? fixture?.middleName
+        ? { middleName: (profile?.middle_name ?? fixture?.middleName)! }
+        : {}),
       role: mapRole(profile?.role) ?? fixture?.role ?? 'employee',
       title: fixture?.title ?? '',
       email: data.user.email ?? email,

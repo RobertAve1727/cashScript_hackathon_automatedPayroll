@@ -73,7 +73,9 @@ export function supabase(): SupabaseClient | null {
 export interface EmployeeRow {
   id: string
   employee_no: string
-  full_name: string
+  first_name: string
+  middle_name: string | null
+  last_name: string
   department: string | null
   payee_pkh: string
   monthly_basic: number
@@ -112,5 +114,7 @@ export interface ProfileRow {
   id: string
   role: 'hr' | 'payroll_officer' | 'employee'
   employee_id: string | null
-  full_name: string | null
+  first_name: string | null
+  middle_name: string | null
+  last_name: string | null
 }
