@@ -52,7 +52,13 @@ export default function LoginPage() {
     <div className="container-fuild">
       <div className="w-100 overflow-hidden position-relative flex-wrap d-block vh-100">
         <div className="row">
-          <div className="col-lg-5">
+          {/*
+            The template splits 5/7 in the form's favour, which suited a form
+            that filled its column. Ours is a fixed 380px, so that column was
+            mostly empty white. Reversed: the brand panel takes the larger
+            share and the form sits in a column close to its own width.
+          */}
+          <div className="col-xl-7 col-lg-6">
             <div className="login-background position-relative d-lg-flex align-items-center justify-content-center d-none flex-wrap vh-100">
               <div className="bg-overlay-img">
                 <img alt="" className="bg-1" src="/build/img/bg/bg-01.png" />
@@ -83,7 +89,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="col-lg-7 col-md-12 col-sm-12">
+          <div className="col-xl-5 col-lg-6 col-md-12 col-sm-12">
             <div className="row justify-content-center align-items-center vh-100 overflow-auto flex-wrap">
               {/*
                 A fixed max-width rather than a grid column. Columns are a
