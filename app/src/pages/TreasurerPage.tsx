@@ -13,6 +13,8 @@ import type { PayrollRun } from '../chain/gateway'
 // screen reported a payroll that had not happened.
 import { activeGateway } from '../chain/active-gateway'
 import { errorMessage, useChainState } from '../chain/use-chain'
+import { formatPayday, payrollReadiness } from '../chain/readiness'
+import { scheduleOf } from '../data/cadence-store'
 import { EmployeeAvatar } from '../components/EmployeeAvatar'
 import { OutputDiagram } from '../components/OutputDiagram'
 import { Card, CardHeader, ErrorNote, Loading, PageHeader, StatTile, StatusBadge } from '../components/ui'
@@ -33,10 +35,12 @@ export default function TreasurerPage() {
 
   if (!state) return <Loading />
   const { treasury, employees } = state
+  // "Payable" used to mean active and inside the contract window, with no clock
+  // at all — so it counted employees whose payday had not arrived and whose
+  // transaction the covenant would refuse. It now asks the same question the
+  // covenant asks.
   const activeCount = employees.filter(
-    (e) =>
-      e.commitment.status === EMPLOYMENT_STATUS_ACTIVE &&
-      e.commitment.nextPeriod <= e.commitment.endPeriod,
+    (e) => payrollReadiness(e.commitment, scheduleOf(e.employeeNo)).due,
   ).length
 
   const runOne = async (employeeNo: number): Promise<void> => {
@@ -124,7 +128,7 @@ export default function TreasurerPage() {
               <StatTile
                 label="Payable employees"
                 value={activeCount}
-                sub="Active, and not past their end period"
+                sub="Due now — the covenant would accept it"
                 icon="ti ti-users-group"
                 tone="success"
               />
@@ -170,6 +174,7 @@ export default function TreasurerPage() {
                       monthlyAllowance: c.monthlyAllowance,
                       taxPerPeriod: c.taxPerPeriod,
                     })
+                    const readiness = payrollReadiness(c, scheduleOf(employee.employeeNo))
                     return (
                       <tr key={employee.employeeNo}>
                         <td>
@@ -195,14 +200,35 @@ export default function TreasurerPage() {
                           {formatPeso(d.totalDrawn)}
                         </td>
                         <td className="text-end">
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-primary"
-                            disabled={busy}
-                            onClick={() => void runOne(employee.employeeNo)}
-                          >
-                            Run payroll
-                          </button>
+                          {/*
+                            Gated on the covenant's OWN rule, not on a separate
+                            opinion: `tx.time >= genesisTime + period *
+                            periodSeconds`. Offering the button early would
+                            offer a transaction the chain is going to reject,
+                            and the rejection would arrive as a covenant error
+                            in front of whoever is watching.
+                          */}
+                          {readiness.due ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-primary"
+                              disabled={busy}
+                              onClick={() => void runOne(employee.employeeNo)}
+                            >
+                              Run payroll
+                            </button>
+                          ) : (
+                            <span
+                              className="badge badge-soft-secondary fw-normal"
+                              title={readiness.detail}
+                            >
+                              {readiness.reason === 'not-yet'
+                                ? `Due ${formatPayday(readiness.nextPaydayAt)}`
+                                : readiness.reason === 'window-exhausted'
+                                  ? 'Contract ended'
+                                  : 'Not active'}
+                            </span>
+                          )}
                         </td>
                       </tr>
                     )

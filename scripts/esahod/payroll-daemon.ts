@@ -172,6 +172,12 @@ async function sweep(): Promise<void> {
         remitConfig,
         genesisTime,
         periodSeconds,
+        // Must match what the treasury was DEPLOYED with. Without it this
+        // defaults to semi-monthly and silently builds the wrong amounts for a
+        // weekly or daily treasury — the covenant then rejects the transaction
+        // with "output 0 must be exactly net pay", which says nothing about
+        // cadence.
+        periodsPerMonth: BigInt(deployment.periodsPerMonth ?? '2'),
       });
       const receipt = await tx.send();
       console.log(
