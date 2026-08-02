@@ -49,18 +49,34 @@ const { TransactionBuilder } = await import('cashscript');
 
 const utxos = await provider.getUtxos(keeperAddress);
 const spendable = utxos.filter((utxo) => utxo.token === undefined);
-const usable = spendable.filter((utxo) => utxo.vout === 0);
+/**
+ * A genesis coin must sit at vout 0 AND carry enough to fund the token output
+ * plus the fee. Counting only the position is how this script came to report
+ * "nothing to do" while holding two 1,000-satoshi coins that 01-deploy then
+ * failed on — a check that answers the easy half of the question is worse
+ * than no check, because it stops you looking.
+ */
+const GENESIS_MINIMUM_SATS = 15_000n;
+
+const usable = spendable.filter((utxo) => utxo.vout === 0 && utxo.satoshis >= GENESIS_MINIMUM_SATS);
 
 console.log(`Keeper: ${keeperAddress}`);
 console.log(`  ${spendable.length} spendable coin(s), ${usable.length} at vout 0\n`);
 
 if (usable.length >= 2) {
-  console.log('Already have two vout-0 coins. Nothing to do.');
+  console.log(`Already have two vout-0 coins of at least ${GENESIS_MINIMUM_SATS} sats. Nothing to do.`);
   console.log('Run: npx tsx scripts/esahod/01-deploy.ts');
   process.exit(0);
 }
 
-const source = usable[0] ?? spendable[0];
+// Largest first, and from every spendable coin rather than only the vout-0
+// ones. The coin worth splitting is usually the change output of an earlier
+// transaction, which by definition is not at vout 0 — taking `spendable[0]`
+// picked whichever the node happened to return first, and reported a
+// 1,000-satoshi dust coin as "the largest".
+const source = [...spendable].sort((a, b) =>
+  b.satoshis > a.satoshis ? 1 : b.satoshis < a.satoshis ? -1 : 0,
+)[0];
 if (!source) {
   throw new Error(
     'No spendable coins. Claim from https://tbch.googol.cash (select CHIPNET) first.',

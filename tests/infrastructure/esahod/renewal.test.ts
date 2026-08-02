@@ -47,7 +47,7 @@ function amendTo(
     amount: scenario.nftUtxo.satoshis,
     token: {
       amount: 0n,
-      category: scenario.nftUtxo.token!.token?.category ?? scenario.nftUtxo.token!.category,
+      category: scenario.nftUtxo.token!.category,
       nft: { capability: 'mutable', commitment: newCommitmentHex },
     },
   });

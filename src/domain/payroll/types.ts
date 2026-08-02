@@ -159,4 +159,35 @@ export const FIXTURE_ENTRY_LEVEL: FixtureEmployee = {
   note: 'Lands on a mid-table MSC bracket, the Pag-IBIG cap binds, and zero withholding tax removes the BIR output — outputs 5 and 6 shift to 4 and 5.',
 };
 
-export const FIXTURES: readonly FixtureEmployee[] = [FIXTURE_ANALYST, FIXTURE_ENTRY_LEVEL];
+/**
+ * The third fixture exists for the FLOORS, which neither of the others reaches.
+ *
+ * Maria sits above the SSS ceiling and Jun in a mid-table bracket, so between
+ * them every cap binds and nothing else does. A part-time hire at P9,000 is
+ * the other end of the table:
+ *
+ *   - PhilHealth's P10,000 income FLOOR binds, so the premium is computed on a
+ *     salary this employee does not earn. That is the law working as written,
+ *     and it is the branch no other fixture exercises.
+ *   - Pag-IBIG's Maximum Fund Salary cap does NOT bind — the first fixture for
+ *     which the base is the actual compensation rather than the cap.
+ *   - No withholding tax, so the BIR output drops and the layout shifts, the
+ *     same way it does for Jun.
+ */
+export const FIXTURE_PART_TIME: FixtureEmployee = {
+  employeeNo: 1003,
+  firstName: 'Ana',
+  middleName: 'Reyes',
+  lastName: 'Bautista',
+  position: 'Customer Support Associate',
+  monthlyBasic: 900_000n, // P9,000.00
+  monthlyAllowance: 0n,
+  taxPerPeriod: 0n,
+  note: 'Below the PhilHealth P10,000 income floor, so the premium is computed on the floor rather than on actual pay. The Pag-IBIG cap does not bind here — the only fixture where the contribution base is the real compensation.',
+};
+
+export const FIXTURES: readonly FixtureEmployee[] = [
+  FIXTURE_ANALYST,
+  FIXTURE_ENTRY_LEVEL,
+  FIXTURE_PART_TIME,
+];
