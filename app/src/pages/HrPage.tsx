@@ -106,6 +106,13 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
   const [middleName, setMiddleName] = useState('')
   const [lastName, setLastName] = useState('')
   const [position, setPosition] = useState('')
+  // Which name fields the user has actually left. A form that opens already
+  // red is telling someone off for something they have not done yet, so the
+  // invalid styling waits for a blur.
+  const [touched, setTouched] = useState<{ first: boolean; last: boolean }>({
+    first: false,
+    last: false,
+  })
   const [basicText, setBasicText] = useState('18,000.00')
   const [allowanceText, setAllowanceText] = useState('0.00')
   const [taxText, setTaxText] = useState('0.00')
@@ -124,13 +131,22 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
   const pkhText = pkhOverride ?? walletPkhHex ?? DEMO_PKH
   const followingWallet = pkhOverride === null && walletPkhHex !== null
 
-  const attempt: EncodeAttempt = useMemo(() => {
-    // A record with no name is not issuable. This is checked first because it
-    // is the failure a person is most likely to cause, and reporting it before
-    // the peso parsing means the message names the field they left empty.
-    if (firstName.trim() === '') return { ok: false, problem: 'First name is required.' }
-    if (lastName.trim() === '') return { ok: false, problem: 'Last name is required.' }
+  /**
+   * Whether the name is complete. Deliberately SEPARATE from the encoding
+   * below, because the 40-byte commitment has no name field — it carries the
+   * payee hash, the pay figures, the period counters, the status and the
+   * employee number, and nothing else. A missing name is a reason not to
+   * issue the record; it is not a reason the bytes cannot be computed, and
+   * blanking the preview over it conflated two different questions.
+   */
+  const nameProblem =
+    firstName.trim() === ''
+      ? 'First name is required.'
+      : lastName.trim() === ''
+        ? 'Last name is required.'
+        : null
 
+  const attempt: EncodeAttempt = useMemo(() => {
     const basic = parsePesoInput(basicText)
     if (basic === null) return { ok: false, problem: 'Basic salary must be a peso amount.' }
     const allowance = parsePesoInput(allowanceText)
@@ -159,10 +175,10 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
     } catch (thrown) {
       return { ok: false, problem: errorMessage(thrown) }
     }
-  }, [firstName, lastName, basicText, allowanceText, taxText, pkhText, endText, props.nextEmployeeNo])
+  }, [basicText, allowanceText, taxText, pkhText, endText, props.nextEmployeeNo])
 
   const issue = (): void => {
-    if (!attempt.ok) return
+    if (!attempt.ok || nameProblem !== null) return
     const basic = parsePesoInput(basicText)
     const allowance = parsePesoInput(allowanceText)
     const tax = parsePesoInput(taxText)
@@ -188,6 +204,7 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
     setMiddleName('')
     setLastName('')
     setPosition('')
+    setTouched({ first: false, last: false })
   }
 
   return (
@@ -222,12 +239,16 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
               <div className="col-md-4">
                 <Field label="First name *">
                   <input
-                    className={`form-control ${firstName.trim() === '' ? 'is-invalid' : ''}`}
+                    className={`form-control ${touched.first && firstName.trim() === '' ? 'is-invalid' : ''}`}
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
+                    onBlur={() => setTouched((t) => ({ ...t, first: true }))}
                     placeholder="Ana"
                     required
                   />
+                  {touched.first && firstName.trim() === '' ? (
+                    <div className="invalid-feedback d-block fs-12">First name is required.</div>
+                  ) : null}
                 </Field>
               </div>
               <div className="col-md-4">
@@ -245,12 +266,16 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
               <div className="col-md-4">
                 <Field label="Last name *">
                   <input
-                    className={`form-control ${lastName.trim() === '' ? 'is-invalid' : ''}`}
+                    className={`form-control ${touched.last && lastName.trim() === '' ? 'is-invalid' : ''}`}
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
+                    onBlur={() => setTouched((t) => ({ ...t, last: true }))}
                     placeholder="Reyes"
                     required
                   />
+                  {touched.last && lastName.trim() === '' ? (
+                    <div className="invalid-feedback d-block fs-12">Last name is required.</div>
+                  ) : null}
                 </Field>
               </div>
               <div className="col-md-6">
@@ -338,8 +363,13 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
                     {attempt.problem}
                   </div>
                 ) : proofView ? (
-                  <CommitmentHex hex={attempt.hex} />
+                  <>
+                    <CommitmentHex hex={attempt.hex} />
+                    {nameProblem ? <PendingName problem={nameProblem} /> : null}
+                  </>
                 ) : (
+                  <>
+                  {nameProblem ? <PendingName problem={nameProblem} /> : null}
                   <IssueReview
                     firstName={firstName}
                     middleName={middleName}
@@ -351,6 +381,7 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
                     endText={endText}
                     employeeNo={props.nextEmployeeNo}
                   />
+                  </>
                 )}
               </div>
             </div>
@@ -368,7 +399,7 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
             <button
               type="button"
               className="btn btn-primary"
-              disabled={!attempt.ok}
+              disabled={!attempt.ok || nameProblem !== null}
               data-bs-dismiss="modal"
               onClick={issue}
             >
@@ -378,6 +409,21 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * Why the record cannot be issued yet, shown beside the preview rather than
+ * instead of it. The bytes below are correct and computable — the commitment
+ * has no name field — so hiding them over a missing name would answer a
+ * question nobody asked.
+ */
+function PendingName({ problem }: { problem: string }) {
+  return (
+    <div className="alert alert-light border d-flex align-items-center fs-12 mb-2" role="status">
+      <i className="ti ti-info-circle me-2"></i>
+      <span>{problem} The bytes are ready; the name is not part of them, but the record is not issuable without one.</span>
     </div>
   )
 }
@@ -395,7 +441,13 @@ function IssueReview(props: {
   employeeNo: number
 }) {
   const rows: readonly [string, string][] = [
-    ['Employee', [props.firstName, props.middleName, props.lastName].map((p) => p.trim()).filter(Boolean).join(' ')],
+    [
+      'Employee',
+      [props.firstName, props.middleName, props.lastName]
+        .map((part) => part.trim())
+        .filter(Boolean)
+        .join(' ') || 'Not yet named',
+    ],
     ['Position', props.position.trim() === '' ? '—' : props.position],
     ['Employee number', `#${props.employeeNo}`],
     ['Monthly basic', `₱${props.basicText}`],
