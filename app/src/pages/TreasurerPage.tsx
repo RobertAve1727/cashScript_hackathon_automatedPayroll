@@ -13,8 +13,13 @@ import type { PayrollRun, RunStage } from '../chain/gateway'
 // screen reported a payroll that had not happened.
 import { activeGateway } from '../chain/active-gateway'
 import { errorMessage, useChainState } from '../chain/use-chain'
-import { formatPayday, payrollReadiness } from '../chain/readiness'
-import { scheduleOf } from '../data/cadence-store'
+import {
+  cadenceMatchesTreasury,
+  deployedPeriodsPerMonth,
+  formatPayday,
+  payrollReadiness,
+} from '../chain/readiness'
+import { scheduleOf, useCadences } from '../data/cadence-store'
 import { EmployeeAvatar } from '../components/EmployeeAvatar'
 import { OutputDiagram } from '../components/OutputDiagram'
 import { Card, CardHeader, ErrorNote, Loading, PageHeader, StatTile, StatusBadge } from '../components/ui'
@@ -65,6 +70,9 @@ export default function TreasurerPage() {
     null,
   )
   const proofView = useProofView()
+  // Loads every employee's cadence; without it scheduleOf answers from an
+  // empty cache and reports the default for the whole roster.
+  useCadences()
 
   if (!state) return <Loading />
   const { treasury, employees } = state
@@ -289,7 +297,8 @@ export default function TreasurerPage() {
                       monthlyAllowance: c.monthlyAllowance,
                       taxPerPeriod: c.taxPerPeriod,
                     })
-                    const readiness = payrollReadiness(c, scheduleOf(employee.employeeNo))
+                    const schedule = scheduleOf(employee.employeeNo)
+                    const readiness = payrollReadiness(c, schedule)
                     return (
                       <tr key={employee.employeeNo}>
                         <td>
@@ -308,6 +317,21 @@ export default function TreasurerPage() {
                         </td>
                         <td className="font-monospace fs-13">
                           {c.nextPeriod} / {c.endPeriod}
+                          {/*
+                            Says why a weekly employee and a semi-monthly one
+                            share a payday. They are paid by the same treasury,
+                            because only one is deployed — without this the
+                            cadence setting looks ignored rather than unfunded.
+                          */}
+                          {cadenceMatchesTreasury(schedule) ? null : (
+                            <span
+                              className="d-block fs-12 text-warning"
+                              title={`This employee is set to ${schedule.cadence} (${schedule.periodsPerMonth} periods a month), but the deployed treasury settles ${deployedPeriodsPerMonth()} a month. Paying them ${schedule.cadence} on chain needs a treasury deployed for that cadence.`}
+                            >
+                              set {schedule.cadence} · paid by the{' '}
+                              {deployedPeriodsPerMonth() === 2 ? 'semi-monthly' : 'deployed'} treasury
+                            </span>
+                          )}
                         </td>
                         <td className="text-end font-monospace">{formatPeso(d.monthlyCompensation)}</td>
                         <td className="text-end font-monospace">{formatPeso(d.net)}</td>

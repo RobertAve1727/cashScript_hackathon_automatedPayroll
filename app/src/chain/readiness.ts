@@ -1,4 +1,9 @@
-import { SEMI_MONTHLY, periodSecondsFor, type PayrollSchedule } from '@domain/index'
+import {
+  SECONDS_PER_JULIAN_YEAR,
+  SEMI_MONTHLY,
+  periodSecondsFor,
+  type PayrollSchedule,
+} from '@domain/index'
 import type { EmploymentCommitment } from '@domain/payroll/commitment'
 import { EMPLOYMENT_STATUS_ACTIVE } from '@domain/payroll/types'
 
@@ -119,6 +124,41 @@ export function esahodPeriodSeconds(schedule: PayrollSchedule): bigint {
   // No deployment configured: the demo chain has no covenant of its own, so
   // the schedule is the only clock there is.
   return periodSecondsFor(schedule)
+}
+
+/**
+ * How many periods a month the DEPLOYED treasury settles.
+ *
+ * Derived from its `periodSeconds` rather than configured separately, so the
+ * two can never disagree: a treasury paying every 1,314,873 seconds settles
+ * 24 periods a year, which is semi-monthly, and there is no second value to
+ * keep in sync.
+ *
+ * Null when no deployment is configured — the demo chain has no covenant, so
+ * there is nothing for an employee's cadence to disagree with.
+ */
+export function deployedPeriodsPerMonth(): number | null {
+  const configured = import.meta.env.VITE_ESAHOD_PERIOD_SECONDS
+  if (configured === undefined || configured === '' || !Number.isFinite(Number(configured))) {
+    return null
+  }
+
+  return Math.round(SECONDS_PER_JULIAN_YEAR / Number(configured) / 12)
+}
+
+/**
+ * Whether an employee's HRIS cadence is one this treasury can actually settle.
+ *
+ * Setting someone to weekly does not make them paid weekly; it records which
+ * treasury should pay them. Until a treasury deployed for that cadence exists
+ * and is funded, they are paid by the one that does exist — and a roster that
+ * shows the same payday for a weekly and a semi-monthly employee without
+ * saying why looks like the setting is being ignored.
+ */
+export function cadenceMatchesTreasury(schedule: PayrollSchedule): boolean {
+  const deployed = deployedPeriodsPerMonth()
+
+  return deployed === null || deployed === schedule.periodsPerMonth
 }
 
 export function payrollReadiness(

@@ -140,6 +140,31 @@ function friendly(message: string): string {
   return message
 }
 
+/**
+ * Load every employee's cadence and re-render when it changes.
+ *
+ * For screens that show a roster rather than one record. Without this,
+ * `scheduleOf` answers from an empty cache and reports the default for
+ * everyone — which looks exactly like a cadence setting that does nothing.
+ */
+export function useCadences(): { loading: boolean } {
+  const [, setTick] = useState(0)
+  const [loading, setLoading] = useState(hasSupabase())
+
+  useEffect(() => {
+    const listener = (): void => setTick((n) => n + 1)
+    listeners.add(listener)
+
+    void refreshCadences().finally(() => setLoading(false))
+
+    return () => {
+      listeners.delete(listener)
+    }
+  }, [])
+
+  return { loading }
+}
+
 /** Subscribe a screen to the cadence of one employee. */
 export function useCadence(employeeNo: number | undefined): {
   schedule: PayrollSchedule
