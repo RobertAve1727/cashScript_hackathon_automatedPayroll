@@ -278,6 +278,31 @@ async function amend(
   return { txid: receipt.txid };
 }
 
+/**
+ * Strip anything that could carry key material out of an error.
+ *
+ * cashscript's failures end with:
+ *
+ *   WARNING: it is unsafe to use this Bitauth URI when using real private keys
+ *   as they are included in the transaction template
+ *   Bitauth URI: https://ide.bitauth.com/import-template/eJzt...
+ *
+ * That base64 blob is the signing template. It is genuinely useful when
+ * debugging locally with throwaway keys and must never cross a network
+ * boundary from a process that holds real ones.
+ *
+ * Cut at the first blank line as well, because the covenant's own message is
+ * always the first line and everything after it is stack and template noise
+ * that means nothing to the person who pressed the button.
+ */
+function redactKeyMaterial(message: string): string {
+  const firstLine = message.split('\n')[0] ?? message;
+
+  return firstLine
+    .replace(/https:\/\/ide\.bitauth\.com\/\S+/g, '[debug template withheld — see the relay log]')
+    .trim();
+}
+
 // ── HTTP ─────────────────────────────────────────────────────────────────
 
 function cors(request: IncomingMessage, response: ServerResponse): boolean {
@@ -380,14 +405,22 @@ const server = createServer((request, response) => {
 
       return send(response, 404, { error: 'unknown endpoint' });
     } catch (thrown) {
-      // The covenant's own require() messages are the most useful thing that can
-      // come back here — "payday for this period has not arrived" tells an
-      // operator exactly what happened. Pass them through rather than replacing
-      // them with a generic failure.
-      const message = thrown instanceof Error ? thrown.message : String(thrown);
-      console.error(`[error] ${message}`);
+      // The covenant's own require() messages are the most useful thing that
+      // can come back here — "payday for this period has not arrived" tells an
+      // operator exactly what happened. But cashscript appends a Bitauth debug
+      // URI to its failures, and that URI embeds the whole transaction
+      // TEMPLATE — including the private keys used to sign it. cashscript says
+      // so itself, in the message.
+      //
+      // This relay holds the keeper key and, when enabled, HR's. Passing the
+      // raw message to a browser would put both in the DOM of whoever pressed
+      // the button. So the message is trimmed to its first useful line before
+      // it leaves this process, and the full text stays in the server log where
+      // the operator already has the keys anyway.
+      const raw = thrown instanceof Error ? thrown.message : String(thrown);
+      console.error(`[error] ${raw}`);
 
-      return send(response, 400, { error: message });
+      return send(response, 400, { error: redactKeyMaterial(raw) });
     }
   })();
 });

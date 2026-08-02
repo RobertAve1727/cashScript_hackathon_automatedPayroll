@@ -98,7 +98,18 @@ export default function TreasurerPage() {
     setError(null)
     const collected: PayrollRun[] = []
     const failures: string[] = []
-    for (const employee of employees) {
+
+    // Only the ones actually due. "Run all" used to mean every employee on the
+    // roster, so a record whose payday had not arrived was built, signed,
+    // broadcast and refused by the network with "bad-txns-nonfinal" — the
+    // covenant's locktime working exactly as designed, arriving as a wall of
+    // node error text. The roster row already knows better; this now asks the
+    // same question before spending a fee on a transaction that cannot confirm.
+    const due = employees.filter(
+      (employee) => payrollReadiness(employee.commitment, scheduleOf(employee.employeeNo)).due,
+    )
+
+    for (const employee of due) {
       try {
         setRunning({ employeeNo: 'all', stage: 'reading' })
         collected.push(
@@ -112,6 +123,11 @@ export default function TreasurerPage() {
     }
     if (collected.length > 0) setRuns((previous) => [...collected.reverse(), ...previous])
     if (failures.length > 0) setError(failures.join(' '))
+    if (due.length === 0) {
+      setError(
+        'Nobody is due yet. The covenant refuses a period before its payday, so there is nothing to broadcast.',
+      )
+    }
     setBusy(false)
     setRunning(null)
   }
