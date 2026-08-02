@@ -165,6 +165,7 @@ function chipnetOutputs(
   employee: EmployeeRecord,
   deductions: Deductions,
   config: ChipnetConfig,
+  treasuryAfter: bigint,
 ): readonly TxOutput[] {
   const remit = (index: number, kind: TxOutput['kind'], label: string, ephp: bigint, detail: string): TxOutput => ({
     index,
@@ -182,27 +183,29 @@ function chipnetOutputs(
       label: `${employee.name} — net pay`,
       recipient: bytesToHex(employee.commitment.payeePkh),
       ephp: deductions.net,
-      detail: 'the payee hash inside the employment record',
+      detail: 'straight to the employee’s own wallet — nobody can redirect it',
     },
-    remit(1, 'sss', 'SSS', deductions.sssEE + deductions.sssER + deductions.sssEC, 'employee + employer + EC'),
-    remit(2, 'philhealth', 'PhilHealth', deductions.phicEE + deductions.phicER, 'employee + employer'),
-    remit(3, 'pagibig', 'Pag-IBIG', deductions.hdmfEE + deductions.hdmfER, 'employee + employer'),
-    remit(4, 'bir', 'BIR', deductions.tax, 'withholding tax'),
+    remit(1, 'sss', 'SSS', deductions.sssEE + deductions.sssER + deductions.sssEC, 'employee share, employer share and the EC premium, in one payment'),
+    remit(2, 'philhealth', 'PhilHealth', deductions.phicEE + deductions.phicER, 'employee and employer shares'),
+    remit(3, 'pagibig', 'Pag-IBIG', deductions.hdmfEE + deductions.hdmfER, 'employee and employer shares'),
+    remit(4, 'bir', 'BIR', deductions.tax, 'withholding tax, remitted the same moment it is deducted'),
     {
       index: 5,
       kind: 'nft',
       label: 'Employment record, period advanced',
       recipient: config.vaultAddress,
       ephp: null,
-      detail: `period ${employee.commitment.nextPeriod} → ${employee.commitment.nextPeriod + 1}`,
+      detail: `paid through period ${employee.commitment.nextPeriod} — this period can never be claimed twice`,
     },
     {
       index: 6,
       kind: 'change',
       label: 'Treasury change',
       recipient: config.treasuryAddress,
-      ephp: null,
-      detail: 'the remainder, back under the covenant',
+      // The remainder is fungible ePHP, not an NFT. Passing null here made the
+      // row render as "mutable NFT" with no amount at all.
+      ephp: treasuryAfter,
+      detail: 'the remainder, locked straight back under the same covenant',
     },
   ]
 }
@@ -297,7 +300,7 @@ export class ChipnetChainGateway implements ChainGateway {
       executedAt: Date.now(),
       deductions,
       layout: outputLayoutFor(employee.commitment.taxPerPeriod),
-      outputs: chipnetOutputs(employee, deductions, this.config),
+      outputs: chipnetOutputs(employee, deductions, this.config, after.ephpBalance),
       treasuryBefore: before.ephpBalance,
       treasuryAfter: after.ephpBalance,
     }

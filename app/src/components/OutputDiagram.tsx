@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
+import { Fragment, type ReactNode } from 'react'
 
 import type { PayrollRun, TxOutput } from '../chain/gateway'
 import { formatEphp, formatPeso, formatWhen, truncateHex } from '../lib/format'
+import { useProofView } from '../view/proof-view'
 
 /**
  * THE seven-output diagram, live: one payroll transaction, rendered in the
@@ -25,6 +26,7 @@ const KIND_TONE: Record<TxOutput['kind'], string> = {
 
 export function OutputDiagram(props: { run: PayrollRun }) {
   const { run } = props
+  const proofView = useProofView()
 
   const rows: ReactNode[] = []
   for (const output of run.outputs) {
@@ -37,7 +39,7 @@ export function OutputDiagram(props: { run: PayrollRun }) {
         </li>,
       )
     }
-    rows.push(<OutputRow key={output.index} output={output} />)
+    rows.push(<OutputRow key={output.index} output={output} proofView={proofView} />)
   }
 
   return (
@@ -70,8 +72,8 @@ export function OutputDiagram(props: { run: PayrollRun }) {
   )
 }
 
-function OutputRow(props: { output: TxOutput }) {
-  const { output } = props
+function OutputRow(props: { output: TxOutput; proofView: boolean }) {
+  const { output, proofView } = props
   const tone = KIND_TONE[output.kind]
 
   return (
@@ -83,19 +85,41 @@ function OutputRow(props: { output: TxOutput }) {
       </span>
       <div className="flex-fill overflow-hidden">
         <p className="mb-0 text-truncate">{output.label}</p>
-        <p className="fs-12 mb-0 font-monospace text-muted text-truncate">
-          {output.recipient}
-          {output.detail ? <span> · {output.detail}</span> : null}
+        {/*
+          The recipient is a 20-byte hash or a covenant address — the answer to
+          "prove it", not to "who got paid". A payroll officer reading this with
+          proof view off wants the second question answered, so the hash stays
+          behind the toggle and the explanation does not.
+        */}
+        <p className={`fs-12 mb-0 text-muted text-truncate ${proofView ? 'font-monospace' : ''}`}>
+          {proofView ? (
+            <Fragment>
+              {output.recipient}
+              {output.detail ? <span> · {output.detail}</span> : null}
+            </Fragment>
+          ) : (
+            output.detail
+          )}
         </p>
       </div>
       <div className="text-end flex-shrink-0">
-        {output.ephp === null ? (
+        {/*
+          Keyed on `kind`, not on a missing amount. Using `ephp === null` as a
+          proxy for "this is the NFT" meant any output that simply did not know
+          its amount rendered as a mutable NFT — which is how the treasury
+          change came to be labelled one.
+        */}
+        {output.kind === 'nft' ? (
           <span className="badge badge-soft-primary badge-sm fw-normal">mutable NFT</span>
+        ) : output.ephp === null ? (
+          <span className="fs-12 text-muted">—</span>
         ) : (
-          <>
+          <Fragment>
             <p className="mb-0 fw-medium">{formatPeso(output.ephp)}</p>
-            <p className="fs-12 mb-0 font-monospace text-muted">{formatEphp(output.ephp)}</p>
-          </>
+            {proofView ? (
+              <p className="fs-12 mb-0 font-monospace text-muted">{formatEphp(output.ephp)}</p>
+            ) : null}
+          </Fragment>
         )}
       </div>
     </li>
