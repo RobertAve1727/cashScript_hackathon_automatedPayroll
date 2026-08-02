@@ -126,5 +126,19 @@ export function clear(keys: readonly string[]): void {
 
 export const STORAGE_KEYS = {
   chain: 'esahod.chain.v1',
-  attendance: 'esahod.attendance.v1',
+  /**
+   * v2 because the shape changed, not the schema.
+   *
+   * Attendance used to be stored as `[key, AttendanceDay][]` — Map entries. It
+   * is now a flat `AnchoredPunch[]`, because the day became a fold rather than
+   * a stored object. Both are arrays, so old data would deserialise happily and
+   * then be read as punches, producing days with `undefined` timestamps.
+   *
+   * `SCHEMA_VERSION` cannot do this job: it is one number covering every key, so
+   * bumping it to invalidate attendance would also discard the demo chain and
+   * reset the treasury. A new key retires the old shape on its own.
+   */
+  attendance: 'esahod.attendance.v2',
+  /** The shape this replaced. Cleared on load so it does not sit there forever. */
+  attendanceLegacy: 'esahod.attendance.v1',
 } as const

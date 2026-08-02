@@ -84,6 +84,33 @@ export interface EmployeeRow {
   next_period: number
   end_period: number | null
   status: 'active' | 'inactive'
+  /**
+   * How often this employee is paid. Off-chain by necessity: the commitment's
+   * 40 bytes are fully allocated, and the covenant's `periodSeconds` is part of
+   * the treasury address, so cadence cannot vary per employee on chain.
+   * `monthly` exists in the enum and is refused by
+   * `employees_pay_cadence_lawful_art103` (Art. 103, Labor Code).
+   */
+  pay_cadence: 'daily' | 'weekly' | 'semi_monthly' | 'monthly'
+}
+
+/**
+ * One tap of the clock. Append-only: `attendance_punches` has no delete policy
+ * and a trigger refuses edits, so a correction is a new punch rather than a
+ * changed one. `attendance_records` is a projection a trigger maintains from
+ * these, and no client may write it.
+ */
+export interface AttendancePunchRow {
+  id: string
+  employee_id: string
+  work_date: string
+  kind: 'in' | 'out'
+  punched_at: string
+  /** The 13-byte OP_RETURN payload as hex — 26 characters, checked in the DB. */
+  payload_hex: string
+  anchor_tx_id: string | null
+  anchor_status: 'pending' | 'broadcast' | 'confirmed' | 'failed'
+  created_at: string
 }
 
 export interface AttendanceRow {

@@ -7,6 +7,7 @@ import { useAppServices } from '@ui/providers/AppServicesProvider'
 import type { ThemeMode } from '@ui/domain/theme/ThemeSettings'
 import { toggleProofView, useProofView } from '../../../view/proof-view'
 import { clear, STORAGE_KEYS } from '../../../chain/persistence'
+import { hasSupabase } from '../../../data/supabase'
 import { useChainMode, type ChainMode } from '../../../chain/active-gateway'
 
 /**
@@ -56,12 +57,18 @@ export default function Header() {
    * button would appear to do nothing until the next refresh.
    */
   const reset = (): void => {
+    // The wording has to track what this actually clears. Attendance moved to
+    // Postgres, where punches are append-only by trigger — this button cannot
+    // delete them and should not imply it can. Saying so is also the more
+    // useful message: not being able to wipe attendance is the feature.
     const ok = window.confirm(
-      'Reset the demo?\n\nThis clears every payroll run, amendment and attendance record, and puts the treasury and both employees back to their starting state.',
+      hasSupabase()
+        ? 'Reset the demo?\n\nThis clears the local demo chain — payroll runs, amendments, and the treasury — and puts both employees back to their starting state.\n\nAttendance punches and overtime requests are stored on the server and are NOT cleared: a punch cannot be deleted, only corrected by a new one.'
+        : 'Reset the demo?\n\nThis clears every payroll run, amendment and attendance record, and puts the treasury and both employees back to their starting state.',
     )
     if (!ok) return
 
-    clear([STORAGE_KEYS.chain, STORAGE_KEYS.attendance])
+    clear([STORAGE_KEYS.chain, STORAGE_KEYS.attendance, STORAGE_KEYS.attendanceLegacy])
     window.location.reload()
   }
 

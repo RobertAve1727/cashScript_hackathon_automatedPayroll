@@ -17,10 +17,10 @@ import { useProofView } from '../view/proof-view'
  */
 export default function AttendancePage() {
   const state = useChainState()
-  const days = useAttendance()
+  const { days, loading: daysLoading } = useAttendance()
   const proofView = useProofView()
 
-  if (!state) return <Loading />
+  if (!state || daysLoading) return <Loading />
 
   const nameOf = (employeeNo: number): string =>
     state.employees.find((employee) => employee.employeeNo === employeeNo)?.name ?? `#${employeeNo}`
@@ -73,7 +73,7 @@ export default function AttendancePage() {
         <div className="card-body p-0">
           {days.length === 0 ? (
             <p className="text-muted p-3 mb-0">
-              No attendance yet — sign in as an employee and use the Time Clock.
+              No attendance recorded yet — sign in as an employee and use the Time Clock.
             </p>
           ) : (
             <div className="table-responsive">

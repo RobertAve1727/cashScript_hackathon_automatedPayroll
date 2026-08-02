@@ -304,6 +304,16 @@ So every clock-in and clock-out is written to the chain as a 13-byte
 unspendable, so it adds nothing to the UTXO set anyone must carry forever, it
 is timestamped by the block that confirms it, and it needs no new covenant.
 
+**Where a punch lives before it is anchored.** The tap writes a row to
+`attendance_punches` immediately; the anchor transaction follows when someone
+with a key broadcasts it. That table is append-only, and enforced by trigger
+rather than only by policy — which matters, because the `service_role` key
+bypasses row-level security and does **not** bypass triggers. A punch cannot be
+edited or deleted by any key in this project; a correction is a new punch,
+which is visible. The day an employee worked (`attendance_records`) is a
+projection a trigger maintains from those punches, and no client may write it,
+so nobody can assert a day their own punches contradict.
+
 **What this guarantees:** the record is tamper-evident. A punch, once
 confirmed, cannot be edited or backdated, and its absence is as visible as its
 presence.
@@ -443,19 +453,21 @@ way to lose credibility with someone who reads the code.
 | Statutory arithmetic | **Real**, and matched character-for-character against the covenant's |
 | Attack suite | **Real.** Each case builds a valid transaction with one deliberate mutation and asserts the exact `require()` message |
 | Attendance anchor | **Real** transaction builder, VM-accepted, decoded back out of the broadcast bytes in tests |
-| Chipnet deployment scripts | **Written and typechecked. Never run.** Nothing has been broadcast to a public network |
-| The app's chain data | **Mocked.** [mock-chain-gateway.ts](../app/src/chain/mock-chain-gateway.ts) is in-memory; the txids it shows are synthesised |
-| Sign-in | **Mocked.** A credential table in the bundle. It chooses which pages you see, nothing more |
-| Daily/weekly cadence | **Engine-ready, not chain-settled.** See §8 |
+| Chipnet deployment | **Real and done.** Genesis, enrolment and one payroll broadcast; txid `fa4e036c01b3296185abe39bdfd05a00621670b2e7cfef7a8cfa31c23855a916` paid five parties atomically |
+| The app's chain data | **Real when configured.** [chipnet-gateway.ts](../app/src/chain/chipnet-gateway.ts) reads live UTXOs at the deployed covenant addresses. It cannot **write**: signing a fee input needs a key, and the browser is the wrong place for one, so runs happen from `scripts/esahod/` |
+| Sign-in | **Real when configured.** Supabase auth with row-level security deciding what the session may read; falls back to bundled fixtures offline |
+| Attendance punches | **Stored, not yet anchored.** Append-only rows in Postgres — a trigger refuses edits and deletes, so not even the service_role key can rewrite one. The 13 bytes are the real `encodePunch` output; `anchor_tx_id` stays null until someone with a key broadcasts it |
+| Daily/weekly cadence | **Engine-ready, not chain-settled.** HR can set it per employee and the engine, reconciliation and payday clock all follow. The deployed covenant still settles semi-monthly. See §8 |
 | BCMR token metadata | **Written, not published** |
 
-Total: **359 tests passing** across 21 files.
+Total: **389 tests passing** across 23 files.
 
 The honest one-line summary:
 
 > The covenants are proven to enforce what we claim, against the real virtual
-> machine. They have not yet been deployed to a public network, and the
-> frontend runs against an in-memory chain.
+> machine, and they are deployed on chipnet with one payroll already broadcast.
+> The frontend reads that chain; it does not write to it, because writing needs
+> a signing key the browser should not hold.
 
 ---
 
@@ -509,7 +521,7 @@ what is verifiable and refusing to pretend about the rest — is the point.
 ```bash
 npm install
 npm run contracts:compile     # cashc → artifacts/
-npm run verify                # typecheck + 359 tests
+npm run verify                # typecheck + 389 tests
 cd app && npm install && npm run dev
 ```
 

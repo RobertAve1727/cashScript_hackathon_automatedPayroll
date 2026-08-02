@@ -4,9 +4,18 @@ import {
   workedBasisPoints,
   workedSeconds,
 } from '@domain/attendance/time-record'
-import { computeScheduledDeductions, DAILY } from '@domain/index'
+import { computeScheduledDeductions } from '@domain/index'
 import { useChainState } from '../chain/use-chain'
-import { attendanceGateway, openDay, useAttendance, type AnchoredPunch } from '../chain/attendance-gateway'
+import {
+  attendanceBackend,
+  attendanceGateway,
+  openDay,
+  useAttendance,
+  workDateOf,
+  type AnchoredPunch,
+} from '../chain/attendance-gateway'
+import { monthlyTaxOf } from '../chain/commitment-terms'
+import { useCadence } from '../data/cadence-store'
 import { Card, CardHeader, ErrorNote, Loading, PageHeader } from '../components/ui'
 import { formatPeso, formatWhen, truncateHex } from '../lib/format'
 import { useSession } from '../auth/session'
@@ -31,8 +40,10 @@ export default function TimeClockPage() {
   const user = useSession()
   const employeeNo = user?.employeeNo ?? 0
   const state = useChainState()
-  const days = useAttendance(employeeNo)
+  const { days, loading: daysLoading, reload: reloadDays } = useAttendance(employeeNo)
+  const { schedule } = useCadence(employeeNo)
   const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
   const [lastPunch, setLastPunch] = useState<AnchoredPunch | null>(null)
   const proofView = useProofView()
   const { requests: overtime, reload: reloadOvertime } = useOvertime()
@@ -46,18 +57,32 @@ export default function TimeClockPage() {
   const clockedIn = today !== undefined
   const record = state.employees.find((employee) => employee.employeeNo === employeeNo)
 
+  // Recording a punch is a network write now, so it can fail and it takes
+  // time. Both buttons lock while it is in flight: a double tap would file two
+  // punches, and while the second is harmless on the way in — the earliest
+  // arrival wins — on the way out it is a second row for a moment that only
+  // happened once.
   const punch = (kind: 'in' | 'out'): void => {
     setError(null)
-    try {
-      setLastPunch(attendanceGateway.punch(employeeNo, kind))
-    } catch (thrown) {
-      setError(thrown instanceof Error ? thrown.message : String(thrown))
-    }
+    setBusy(true)
+
+    void attendanceGateway
+      .punch(employeeNo, kind)
+      .then((anchored) => {
+        setLastPunch(anchored)
+        reloadDays()
+      })
+      .catch((thrown: unknown) => {
+        setError(thrown instanceof Error ? thrown.message : String(thrown))
+      })
+      .finally(() => setBusy(false))
   }
 
   // Today's accrual, from the same engine that settles it. Absent a clock-out
   // the day is still open, so it shows what has been earned so far.
-  const settledToday = days.filter((day) => day.timeOut !== undefined && day.workDate === todayKey())
+  const settledToday = days.filter(
+    (day) => day.timeOut !== undefined && day.workDate === workDateOf(Math.floor(Date.now() / 1000)),
+  )
   const workedBp = settledToday.reduce((total, day) => total + workedBasisPoints(day), 0)
   const earnedToday =
     record === undefined
@@ -65,8 +90,12 @@ export default function TimeClockPage() {
       : computeScheduledDeductions({
           monthlyBasic: record.commitment.monthlyBasic,
           monthlyAllowance: record.commitment.monthlyAllowance,
-          monthlyTax: record.commitment.taxPerPeriod * 2n,
-          schedule: DAILY,
+          monthlyTax: monthlyTaxOf(record.commitment),
+          // The employee's own cadence, not a hardcoded daily one. This screen
+          // used to compute a day's accrual against DAILY regardless of how the
+          // employee is actually paid, so a semi-monthly employee saw a figure
+          // no run would ever produce.
+          schedule,
           periodOfMonth: 1,
           periodsWorked: Math.min(workedBp / 10_000, 1),
         })
@@ -84,8 +113,14 @@ export default function TimeClockPage() {
               title={clockedIn ? 'On the clock' : 'Not clocked in'}
               hint={
                 proofView
-                  ? 'Each tap is written to the chain as a 13-byte OP_RETURN before it is written anywhere else.'
-                  : 'Each tap is recorded on the chain the moment it happens, so it cannot be edited later.'
+                  ? `Each tap is written as a 13-byte OP_RETURN and kept ${
+                      attendanceBackend() === 'supabase'
+                        ? 'as an append-only row no key in this project can edit'
+                        : 'in this browser — no backend is configured'
+                    }.`
+                  : attendanceBackend() === 'supabase'
+                    ? 'Each tap is recorded the moment it happens and cannot be edited afterwards — only corrected by a new punch.'
+                    : 'Each tap is recorded the moment it happens. No backend is configured, so this stays in your browser.'
               }
             />
             <div className="card-body text-center">
@@ -103,14 +138,16 @@ export default function TimeClockPage() {
                   <h4 className="mb-3">{formatWhen(today.timeIn * 1000)}</h4>
                 </Fragment>
               ) : (
-                <p className="text-muted mb-3">Tap in to start the working day.</p>
+                <p className="text-muted mb-3">
+                  {daysLoading ? 'Checking today’s record…' : 'Tap in to start the working day.'}
+                </p>
               )}
 
               <div className="d-flex justify-content-center gap-2">
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={clockedIn}
+                  disabled={clockedIn || busy || daysLoading}
                   onClick={() => punch('in')}
                 >
                   <i className="ti ti-login me-1"></i>Time in
@@ -118,7 +155,7 @@ export default function TimeClockPage() {
                 <button
                   type="button"
                   className="btn btn-outline-primary"
-                  disabled={!clockedIn}
+                  disabled={!clockedIn || busy || daysLoading}
                   onClick={() => punch('out')}
                 >
                   <i className="ti ti-logout me-1"></i>Time out
@@ -149,7 +186,10 @@ export default function TimeClockPage() {
                   <div className="col-sm-4">
                     <p className="fs-12 mb-1 text-muted">Gross earned</p>
                     <h5 className="mb-0">{formatPeso(earnedToday.gross)}</h5>
-                    <p className="fs-12 mb-0 text-muted">1 of {DAILY.periodsPerMonth} working days</p>
+                    <p className="fs-12 mb-0 text-muted">
+                      1 of {schedule.periodsPerMonth}{' '}
+                      {schedule.cadence === 'daily' ? 'working days' : 'pay periods'} this month
+                    </p>
                   </div>
                   <div className="col-sm-4">
                     <p className="fs-12 mb-1 text-muted">Your share, this day</p>
@@ -271,7 +311,7 @@ export default function TimeClockPage() {
                 onClick={() => {
                   setOtNote(null)
                   void fileOvertime({
-                    workDate: todayKey(),
+                    workDate: workDateOf(Math.floor(Date.now() / 1000)),
                     minutes: Number(otMinutes),
                     reason: otReason.trim(),
                   }).then((result) => {
@@ -336,7 +376,9 @@ export default function TimeClockPage() {
           hint="Every row is backed by punches already on chain — the employer can dispute a day, but cannot silently rewrite one."
         />
         <div className="card-body p-0">
-          {days.length === 0 ? (
+          {daysLoading ? (
+            <p className="text-muted p-3 mb-0">Loading your time records…</p>
+          ) : days.length === 0 ? (
             <p className="text-muted p-3 mb-0">Nothing recorded yet.</p>
           ) : (
             <div className="table-responsive">
@@ -399,11 +441,4 @@ function clockTime(unixSeconds: number): string {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function todayKey(): string {
-  const now = new Date()
-  const month = `${now.getMonth() + 1}`.padStart(2, '0')
-  const day = `${now.getDate()}`.padStart(2, '0')
-  return `${now.getFullYear()}-${month}-${day}`
 }

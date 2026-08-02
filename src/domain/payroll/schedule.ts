@@ -115,3 +115,146 @@ export function periodOfMonth(runningPeriod: number, schedule: PayrollSchedule):
 
   return (runningPeriod % schedule.periodsPerMonth) + 1;
 }
+
+/** Every schedule, including the one that may not be chosen. */
+const ALL_SCHEDULES: readonly PayrollSchedule[] = [DAILY, WEEKLY, SEMI_MONTHLY, MONTHLY_UNLAWFUL];
+
+/**
+ * The schedule a cadence name refers to.
+ *
+ * Cadence crosses a boundary — it is stored in the HRIS, sent over the wire and
+ * read back — so it travels as a string and has to be turned back into a
+ * schedule somewhere. Doing that in one place means a value that is not a
+ * cadence fails here, with the offending string in the message, rather than
+ * three layers later as a division by `undefined`.
+ */
+export function scheduleFor(cadence: PayrollCadence): PayrollSchedule {
+  const found = ALL_SCHEDULES.find((schedule) => schedule.cadence === cadence);
+
+  if (!found) {
+    throw new InvariantViolationError('scheduleFor', `unknown pay cadence: ${String(cadence)}`);
+  }
+
+  return found;
+}
+
+/** True for a string that names a cadence. For parsing what a database returned. */
+export function isPayrollCadence(value: unknown): value is PayrollCadence {
+  return ALL_SCHEDULES.some((schedule) => schedule.cadence === value);
+}
+
+/**
+ * A Julian year in seconds — 365.2425 days, the figure the deployed treasury's
+ * `periodSeconds` was derived from (31556952 / 24 = 1314873).
+ */
+export const SECONDS_PER_JULIAN_YEAR = 31_556_952;
+
+/** Pay periods in a year. Twelve months of whatever the schedule runs. */
+export function periodsPerYear(schedule: PayrollSchedule): number {
+  return schedule.periodsPerMonth * 12;
+}
+
+/**
+ * How long one pay period lasts, seconds.
+ *
+ * Derived from `periodsPerMonth` rather than from the calendar, and that is a
+ * deliberate choice with a consequence worth stating: a weekly cadence here is
+ * 48 periods a year, not 52.
+ *
+ * The reason is that `periodsPerMonth` is the divisor the statutory engine uses
+ * to split a MONTHLY obligation, and the month has to close on the published
+ * figure exactly. Fifty-two weeks do not divide twelve months, so a 52-period
+ * year would leave every month reconciling against a fraction of a week — the
+ * exactness this project is built on would be the first casualty. Four periods
+ * a month keeps the allocation exact and puts paydays 7.6 days apart, which is
+ * still comfortably inside Article 103's sixteen-day maximum.
+ *
+ * Truncating integer division: the last period of a year absorbs the remainder,
+ * the same way the last period of a month absorbs the indivisible centavo.
+ */
+export function periodSecondsFor(schedule: PayrollSchedule): bigint {
+  return BigInt(SECONDS_PER_JULIAN_YEAR) / BigInt(periodsPerYear(schedule));
+}
+
+/**
+ * When a period becomes claimable, as a unix timestamp in seconds.
+ *
+ * This is the app-side twin of the covenant's only temporal rule —
+ * `require(tx.time >= genesisTime + period * periodSeconds)` at
+ * `contracts/payroll_treasury.cash:217` — and of `payableAt` in the payroll
+ * daemon. Having it in the domain is what lets a screen answer "is this
+ * employee due" with the same arithmetic that decides whether the transaction
+ * will actually be accepted, instead of a second opinion that can drift.
+ */
+export function payableAt(
+  genesisTime: bigint,
+  period: number,
+  schedule: PayrollSchedule,
+): bigint {
+  if (!Number.isInteger(period) || period < 0) {
+    throw new InvariantViolationError('payableAt', `period must be a non-negative integer, got ${period}`);
+  }
+
+  return genesisTime + BigInt(period) * periodSecondsFor(schedule);
+}
+
+/** Whether `period` may be claimed at `now`. Both in unix seconds. */
+export function isPayableNow(
+  genesisTime: bigint,
+  period: number,
+  schedule: PayrollSchedule,
+  now: bigint,
+): boolean {
+  return now >= payableAt(genesisTime, period, schedule);
+}
+
+/**
+ * What a contract window measured in periods becomes under a different cadence.
+ *
+ * `endPeriod` is two bytes of the employment commitment counting PERIODS, not
+ * time — so it means something different the moment the cadence changes. A
+ * one-year contract is `endPeriod = 24` semi-monthly and `endPeriod = 264`
+ * daily, and a record moved to a faster cadence without rescaling stops paying
+ * early: the covenant simply fails `require(period <= endPeriod)` and the
+ * employee is unpaid with no explanation attached to the failure.
+ *
+ * Rounding is toward the employee. A window that cannot be expressed exactly in
+ * the new cadence is rounded UP, because the alternative is silently shortening
+ * someone's employment contract to make an integer divide evenly.
+ */
+export function rescaleEndPeriod(
+  endPeriod: number,
+  from: PayrollSchedule,
+  to: PayrollSchedule,
+): number {
+  if (!Number.isInteger(endPeriod) || endPeriod < 0) {
+    throw new InvariantViolationError('rescaleEndPeriod', `endPeriod must be a non-negative integer, got ${endPeriod}`);
+  }
+
+  const scaled = (endPeriod * to.periodsPerMonth) / from.periodsPerMonth;
+
+  return Math.ceil(scaled);
+}
+
+/**
+ * What `taxPerPeriod` becomes under a different cadence.
+ *
+ * The commitment's `taxPerPeriod` is denominated in whatever period the record
+ * was written for. Change the cadence without rewriting it and the covenant
+ * keeps sending that same figure every period — at daily cadence that is
+ * twenty-two times the month's withholding tax handed to the BIR, drawn from
+ * the employee's pay.
+ *
+ * Deliberately NOT applied automatically anywhere. Rewriting the commitment is
+ * an HR-signed amendment on chain, and this function exists so a screen can
+ * show what the amendment would have to say before anyone signs it.
+ */
+export function rescaleTaxPerPeriod(
+  taxPerPeriod: bigint,
+  from: PayrollSchedule,
+  to: PayrollSchedule,
+): bigint {
+  const monthly = taxPerPeriod * BigInt(from.periodsPerMonth);
+
+  return monthly / BigInt(to.periodsPerMonth);
+}

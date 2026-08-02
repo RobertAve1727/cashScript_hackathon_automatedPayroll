@@ -9,27 +9,34 @@
 -- treasury_state and why the app reads balances from the chain adapter.
 --
 -- What is NOT on chain, and genuinely lives here: names, emails, departments,
--- hire dates, attendance and overtime. The commitment has no room for them.
+-- hire dates, attendance, overtime and pay cadence. The commitment has no room
+-- for them — and cadence could not go on chain even if it did, because the
+-- covenant's periodSeconds is part of the treasury's address.
+--
+-- full_name is GENERATED ALWAYS from the name parts (migration 0003) and so is
+-- never written here; Postgres rejects an insert that names a generated column.
 -- ═══════════════════════════════════════════════════════════════════════
 
 insert into public.employees
-  (employee_no, full_name, department, payee_pkh,
+  (employee_no, first_name, middle_name, last_name, department, payee_pkh,
    monthly_basic, monthly_allowance, tax_per_period,
-   next_period, end_period, status,
+   next_period, end_period, status, pay_cadence,
    vault_address, nft_commitment_category, contact_email)
 values
-  ('1001','Maria Santos','Engineering','8839f70bf8a744f17009f28c31550fc3875db592',
-   3500000, 200000, 102160, 1, 23, 'active',
+  ('1001','Maria','Cruz','Santos','Engineering','8839f70bf8a744f17009f28c31550fc3875db592',
+   3500000, 200000, 102160, 1, 23, 'active', 'semi_monthly',
    'bchtest:pwhm3arc557kzt79kp97gnmt370r3e2yv2kqxjck8ygrrz4zhv0q5lfhw4hs8',
    'afb8ae9d4c3b2ad2ba4e85b443469be4171291fa8b2406494a72e7fbba04b4e1',
    'maria.santos@esahod.ph'),
-  ('1002','Jun Dela Cruz','Warehouse','9e31987a8ce658cd11110b3f4477c27742ff69b5',
-   1600000, 0, 0, 0, 23, 'active',
+  ('1002','Jun',null,'Dela Cruz','Warehouse','9e31987a8ce658cd11110b3f4477c27742ff69b5',
+   1600000, 0, 0, 0, 23, 'active', 'semi_monthly',
    'bchtest:pwhm3arc557kzt79kp97gnmt370r3e2yv2kqxjck8ygrrz4zhv0q5lfhw4hs8',
    'afb8ae9d4c3b2ad2ba4e85b443469be4171291fa8b2406494a72e7fbba04b4e1',
    'jun.delacruz@esahod.ph')
 on conflict (employee_no) do update set
-  full_name = excluded.full_name,
+  first_name = excluded.first_name,
+  middle_name = excluded.middle_name,
+  last_name = excluded.last_name,
   payee_pkh = excluded.payee_pkh,
   monthly_basic = excluded.monthly_basic,
   monthly_allowance = excluded.monthly_allowance,
@@ -42,14 +49,16 @@ on conflict (employee_no) do update set
 -- Roles, and the employee link for the two who have one.
 update public.profiles p set
   role = v.role::user_role,
-  full_name = v.full_name,
+  first_name = v.first_name,
+  middle_name = v.middle_name,
+  last_name = v.last_name,
   employee_id = (select e.id from public.employees e where e.employee_no = v.employee_no)
 from (values
-  ('maria.santos@esahod.ph','employee','Maria Santos','1001'),
-  ('jun.delacruz@esahod.ph','employee','Jun Dela Cruz','1002'),
-  ('rosa.villanueva@esahod.ph','hr','Rosa Villanueva',null),
-  ('ben.aquino@esahod.ph','payroll_officer','Ben Aquino',null)
-) as v(email, role, full_name, employee_no)
+  ('maria.santos@esahod.ph','employee','Maria','Cruz','Santos','1001'),
+  ('jun.delacruz@esahod.ph','employee','Jun',null,'Dela Cruz','1002'),
+  ('rosa.villanueva@esahod.ph','hr','Rosa','Bautista','Villanueva',null),
+  ('ben.aquino@esahod.ph','payroll_officer','Ben',null,'Aquino',null)
+) as v(email, role, first_name, middle_name, last_name, employee_no)
 where p.id = (select u.id from auth.users u where u.email = v.email);
 
 -- The remittance destinations the covenant is pinned to, and the three keys.

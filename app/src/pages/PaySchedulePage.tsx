@@ -4,11 +4,17 @@ import {
   SELECTABLE_SCHEDULES,
   SEMI_MONTHLY,
   monthlyObligations,
+  periodSecondsFor,
+  rescaleEndPeriod,
+  rescaleTaxPerPeriod,
   scheduleMonth,
   type PayrollSchedule,
 } from '@domain/index'
 import { useChainState } from '../chain/use-chain'
-import { Card, CardHeader, Loading, PageHeader } from '../components/ui'
+import { monthlyTaxOf } from '../chain/commitment-terms'
+import { formatPayday, payrollReadiness } from '../chain/readiness'
+import { useCadence } from '../data/cadence-store'
+import { Card, CardHeader, ErrorNote, Loading, PageHeader } from '../components/ui'
 import { formatPeso } from '../lib/format'
 import { useProofView } from '../view/proof-view'
 
@@ -28,14 +34,22 @@ import { useProofView } from '../view/proof-view'
  */
 export default function PaySchedulePage() {
   const state = useChainState()
-  const [schedule, setSchedule] = useState<PayrollSchedule>(SEMI_MONTHLY)
   const [employeeNo, setEmployeeNo] = useState<number | null>(null)
   const proofView = useProofView()
 
+  const selected = state?.employees.find((candidate) => candidate.employeeNo === employeeNo)
+  const employee = selected ?? state?.employees[0]
+
+  // The cadence now belongs to the employee, not to this component. It used to
+  // be `useState(SEMI_MONTHLY)`, which meant it died on unmount, was shared
+  // across whichever employee happened to be selected, and could not be read by
+  // any other screen.
+  const { schedule, setSchedule } = useCadence(employee?.employeeNo)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
   if (!state) return <Loading />
 
-  const employee =
-    state.employees.find((candidate) => candidate.employeeNo === employeeNo) ?? state.employees[0]
   if (!employee) {
     return (
       <div className="content">
@@ -47,7 +61,19 @@ export default function PaySchedulePage() {
     )
   }
 
-  const monthlyTax = employee.commitment.taxPerPeriod * 2n
+  const choose = (option: PayrollSchedule): void => {
+    setError(null)
+    setSaving(true)
+
+    void setSchedule(option)
+      .then((result) => {
+        if (!result.ok) setError(result.error ?? 'Could not change the cadence.')
+      })
+      .finally(() => setSaving(false))
+  }
+
+  const readiness = payrollReadiness(employee.commitment, schedule)
+  const monthlyTax = monthlyTaxOf(employee.commitment)
   const monthly = monthlyObligations(
     employee.commitment.monthlyBasic,
     employee.commitment.monthlyAllowance,
@@ -81,8 +107,8 @@ export default function PaySchedulePage() {
       <PageHeader title="Pay Schedule" section="Human Resources" />
 
       <div className="row">
-        <div className="col-xl-8">
-          <Card>
+        <div className="col-xl-8 d-flex">
+          <Card className="flex-fill">
             <CardHeader
               title="Cadence"
               hint="Article 103 sets a floor, not a fixed cadence: wages at least twice a month, at intervals not exceeding 16 days. Anything more frequent is lawful."
@@ -96,7 +122,8 @@ export default function PaySchedulePage() {
                       className={`card mb-0 w-100 h-100 text-start border ${
                         option.cadence === schedule.cadence ? 'border-primary' : ''
                       }`}
-                      onClick={() => setSchedule(option)}
+                      disabled={saving}
+                      onClick={() => choose(option)}
                     >
                       <div className="card-body">
                         <div className="d-flex align-items-center justify-content-between mb-1">
@@ -170,8 +197,122 @@ export default function PaySchedulePage() {
               <h6 className="mb-0">{formatPeso(monthly.sssMsc)}</h6>
             </div>
           </Card>
+
+          {/*
+            Payroll readiness — the thing a cadence change is actually FOR.
+            Shortening the period moves the next payday closer, so a record that
+            was not due becomes due. It is derived from the covenant's own rule
+            (`tx.time >= genesisTime + period * periodSeconds`), never stored, so
+            there is no flag anyone can set to make someone payable early.
+          */}
+          <Card>
+            <CardHeader
+              title="Payroll readiness"
+              hint="The same rule the covenant enforces, asked here before a transaction is built."
+            >
+              <span
+                className={`badge badge-sm fw-normal ${
+                  readiness.due ? 'badge-soft-success' : 'badge-soft-warning'
+                }`}
+              >
+                {readiness.due ? 'Ready' : 'Not yet due'}
+              </span>
+            </CardHeader>
+            <div className="card-body">
+              <p className="fs-13 mb-3">{readiness.detail}</p>
+              <div className="d-flex align-items-center justify-content-between">
+                <span className="fs-12 text-muted">
+                  {readiness.due ? 'Became claimable' : 'Claimable from'}
+                </span>
+                <span className="fs-13 font-monospace">{formatPayday(readiness.nextPaydayAt)}</span>
+              </div>
+              <div className="d-flex align-items-center justify-content-between mt-1">
+                <span className="fs-12 text-muted">Calendar days between paydays</span>
+                <span className="fs-13 font-monospace">
+                  {(Number(periodSecondsFor(schedule)) / 86_400).toFixed(2)}
+                </span>
+              </div>
+              <p className="fs-12 text-muted mb-0 mt-2">
+                Article 103 caps the interval at sixteen days.
+              </p>
+            </div>
+          </Card>
         </div>
       </div>
+
+      <ErrorNote message={error} />
+
+      {/*
+        What a cadence change does NOT do on its own. Both of these are real
+        wrong-money bugs if left unstated: the commitment's endPeriod counts
+        periods, not time, and its taxPerPeriod is denominated in the covenant's
+        semi-monthly period. Change the cadence without amending them and the
+        employee either stops being paid early, or has 22x the month's
+        withholding tax sent to the BIR out of their pay.
+      */}
+      {schedule.cadence === SEMI_MONTHLY.cadence ? null : (
+        <Card>
+          <CardHeader
+            title="What this cadence would need on chain"
+            hint="The engine, the reconciliation and the payday clock follow this setting immediately. The deployed covenant does not."
+          />
+          <div className="card-body">
+            <div className="alert alert-warning mb-3 fs-13">
+              <i className="ti ti-alert-triangle me-1"></i>
+              The deployed treasury settles a <strong>semi-monthly</strong> period and only that
+              one: it computes <code>gross = monthlyCompensation / 2</code> and halves every
+              statutory divisor. Paying {employee.name} {schedule.cadence} on chain is a covenant
+              redeploy with two changed constants — and a new treasury address, because{' '}
+              <code>periodSeconds</code> is part of the contract's address.
+            </div>
+
+            <div className="table-responsive">
+              <table className="table table-nowrap table-sm mb-0">
+                <thead className="table-light">
+                  <tr>
+                    <th>Term in the 40-byte record</th>
+                    <th className="text-end">As written (semi-monthly)</th>
+                    <th className="text-end">Would have to become</th>
+                    <th>If it is not amended</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Contract end period</td>
+                    <td className="text-end font-monospace">{employee.commitment.endPeriod}</td>
+                    <td className="text-end font-monospace">
+                      {rescaleEndPeriod(employee.commitment.endPeriod, SEMI_MONTHLY, schedule)}
+                    </td>
+                    <td className="fs-12 text-danger">
+                      Pay stops early — the covenant just refuses the period
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Withholding tax per period</td>
+                    <td className="text-end font-monospace">
+                      {formatPeso(employee.commitment.taxPerPeriod)}
+                    </td>
+                    <td className="text-end font-monospace">
+                      {formatPeso(
+                        rescaleTaxPerPeriod(employee.commitment.taxPerPeriod, SEMI_MONTHLY, schedule),
+                      )}
+                    </td>
+                    <td className="fs-12 text-danger">
+                      {schedule.periodsPerMonth / SEMI_MONTHLY.periodsPerMonth}× the month's tax
+                      goes to the BIR, out of the employee's pay
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="fs-12 text-muted mb-0 mt-2">
+              Both are HR-signed amendments to the employment NFT. This screen shows what they would
+              have to say; it does not make them, because rewriting someone's pay terms should not
+              be a side effect of changing a dropdown.
+            </p>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <CardHeader
