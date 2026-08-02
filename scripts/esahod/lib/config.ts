@@ -20,6 +20,43 @@ import { ElectrumNetworkProvider, Network, SignatureTemplate, utils, type Networ
 
 export const DEPLOYMENT_FILE = resolve(import.meta.dirname, '..', 'deployment.json');
 
+/** The gitignored file holding this operator's keys. */
+export const ENV_FILE = resolve(import.meta.dirname, '..', '.env');
+
+/**
+ * Load `scripts/esahod/.env` before anything reads `process.env`.
+ *
+ * Every script here needs four to eight secrets, and requiring them to be
+ * exported by hand each time made the commands unrunnable from memory and
+ * turned a forgotten variable into a failure three steps into a broadcast.
+ * Reading them from one gitignored file makes `npm run esahod:relay` work on
+ * its own, which is the only way a demo command is ever actually used.
+ *
+ * Existing environment variables WIN. A file is a convenience; a variable
+ * someone deliberately exported for one command is an instruction, and silently
+ * overriding it would make the file impossible to work around.
+ *
+ * `.env` is gitignored. Nothing here should ever hold a mainnet key — these are
+ * chipnet coins with no value, and the relay's own key is a fee payer that
+ * cannot redirect a payment.
+ */
+function loadEnvFile(): void {
+  try {
+    const before = { ...process.env };
+    process.loadEnvFile(ENV_FILE);
+
+    // loadEnvFile overwrites; put back anything that was already set.
+    for (const [key, value] of Object.entries(before)) {
+      if (value !== undefined) process.env[key] = value;
+    }
+  } catch {
+    // No file is fine — the variables may be exported already, and requireEnv
+    // gives a better message than a missing-file stack trace would.
+  }
+}
+
+loadEnvFile();
+
 export interface DeploymentRecord {
   readonly employmentCategory?: string;
   readonly pesoCategory?: string;

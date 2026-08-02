@@ -525,6 +525,8 @@ what is verifiable and refusing to pretend about the rest — is the point.
 npm install
 npm run contracts:compile     # cashc → artifacts/
 npm run verify                # typecheck + 389 tests
+npm run esahod:live           # relay + app together, writing to chipnet
+npm run esahod:state          # treasury balance and every record, from chain
 cd app && npm install && npm run dev
 ```
 
