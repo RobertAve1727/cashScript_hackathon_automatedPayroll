@@ -15,7 +15,54 @@
  * CHIPNET) before running 01-deploy.ts.
  */
 import { encodeCashAddress } from '@bitauth/libauth';
-import { generateWif, pkhOf, keyFromWif } from './lib/config.js';
+import { generateWif, pkhOf, keyFromWif, readDeployment } from './lib/config.js';
+
+/**
+ * This script prints and nothing else — it writes no file and touches no chain,
+ * so running it is always safe. The danger is entirely in what an operator does
+ * with the output, and it is worth spelling out before the keys scroll past.
+ *
+ * Both covenants are addressed by hashing their constructor arguments.
+ * `payrollOfficerPkh` is one of the treasury's, and the vault takes the
+ * treasury's lock plus `hrPkh` — so replacing either of those keys moves BOTH
+ * contracts to addresses that have never held anything.
+ *
+ * The coins do not move and are not lost; the tooling simply stops pointing at
+ * them. What IS unrecoverable is the HR key itself: `amend()` needs the private
+ * key, not the hash, so an employment record whose HR WIF is gone can never be
+ * amended again. paySalary survives — it needs no signature at all.
+ */
+async function warnIfDeployed(): Promise<void> {
+  const deployment = await readDeployment();
+  if (deployment.treasuryAddress === undefined) return;
+
+  console.log(`
+  ┌─ THERE IS ALREADY A DEPLOYMENT ────────────────────────────────────────
+  │
+  │  treasury  ${deployment.treasuryAddress}
+  │
+  │  Nothing below is in use yet, and nothing has changed — this script only
+  │  prints. But if you put these keys in scripts/esahod/.env:
+  │
+  │    ESAHOD_OFFICER_WIF  changes BOTH contract addresses (it is a treasury
+  │                        constructor argument, and the vault takes the
+  │                        treasury's lock). The tooling would point at empty
+  │                        contracts. Existing funds stay where they are.
+  │
+  │    ESAHOD_HR_WIF       changes the vault address, and losing the old WIF
+  │                        makes amend() impossible on existing records
+  │                        FOREVER. Payroll still works — it needs no key.
+  │
+  │    ESAHOD_KEEPER_WIF   safe to rotate. It only pays fees. The new address
+  │                        starts at zero, so claim from the faucet again.
+  │
+  │  Rotating the keeper alone is the common case and is fine. Generate a full
+  │  fresh set only when starting a NEW deployment from 01-deploy.ts.
+  │
+  └────────────────────────────────────────────────────────────────────────`);
+}
+
+await warnIfDeployed();
 
 /**
  * Chipnet shares testnet's cashaddr prefix, `bchtest` — it has no prefix of
