@@ -462,7 +462,11 @@ way to lose credibility with someone who reads the code.
 | Daily/weekly cadence | **Engine-ready, not chain-settled.** HR can set it per employee and the engine, reconciliation and payday clock all follow. The deployed covenant still settles semi-monthly. See §8 |
 | BCMR token metadata | **Written, not published** |
 
-Total: **389 tests passing** across 23 files.
+Total: **430 tests passing** across 26 files.
+
+For a file-by-file map of every place this project touches the chain — and
+every place it deliberately does not — see
+[where-the-chain-is.md](where-the-chain-is.md).
 
 The honest one-line summary:
 
@@ -524,7 +528,7 @@ what is verifiable and refusing to pretend about the rest — is the point.
 ```bash
 npm install
 npm run contracts:compile     # cashc → artifacts/
-npm run verify                # typecheck + 389 tests
+npm run verify                # typecheck + 430 tests
 npm run esahod:live           # relay + app together, writing to chipnet
 npm run esahod:state          # treasury balance and every record, from chain
 cd app && npm install && npm run dev
