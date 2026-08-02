@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { DayClassification } from '@domain/index'
 import { hasSupabase, supabase, type OvertimeRow } from './supabase'
 
 /**
@@ -30,6 +31,14 @@ export interface OvertimeRequestView {
   status: 'pending' | 'approved' | 'rejected'
   filedAt: string
   decidedAt?: string | null
+  /**
+   * Art. 91-94. What kind of day this was, which decides the multiplier.
+   * HR's recorded decision: a DOLE proclamation is not derivable from a
+   * punch log, and neither is an individual's rest day.
+   */
+  dayClassification: DayClassification
+  /** Art. 86 minutes between 22:00 and 06:00, derived from the punches. */
+  nightMinutes: number
 }
 
 const listeners = new Set<() => void>()
@@ -49,6 +58,8 @@ function fromRow(row: OvertimeRow): OvertimeRequestView {
     status: row.status,
     filedAt: row.filed_at,
     decidedAt: row.decided_at,
+    dayClassification: row.day_classification ?? 'ordinary',
+    nightMinutes: row.night_minutes ?? 0,
   }
 }
 
@@ -95,6 +106,8 @@ export async function fileOvertime(input: {
   workDate: string
   minutes: number
   reason: string
+  dayClassification?: DayClassification
+  nightMinutes?: number
 }): Promise<{ ok: boolean; error?: string }> {
   const client = supabase()
 
@@ -108,6 +121,8 @@ export async function fileOvertime(input: {
         reason: input.reason,
         status: 'pending',
         filedAt: new Date().toISOString(),
+        dayClassification: input.dayClassification ?? 'ordinary',
+        nightMinutes: input.nightMinutes ?? 0,
       },
       ...memory,
     ]
@@ -123,6 +138,8 @@ export async function fileOvertime(input: {
     work_date: input.workDate,
     minutes: input.minutes,
     reason: input.reason,
+    day_classification: input.dayClassification ?? 'ordinary',
+    night_minutes: input.nightMinutes ?? 0,
     // Filing always starts pending. The insert policy requires it, so a
     // client that tried to self-approve would be rejected by the database.
     status: 'pending',
@@ -170,6 +187,7 @@ function friendly(message: string): string {
   if (/decision is final/i.test(message)) return 'That request was already decided — a decision is final.'
   if (/overtime_decision_is_complete/i.test(message)) return 'A decision must record who made it and when.'
   if (/overtime_requests_minutes_check|minutes/i.test(message)) return 'Overtime must be between 1 minute and 8 hours.'
+  if (/overtime_night_within_request/i.test(message)) return 'Night minutes cannot exceed the overtime requested.'
   if (/duplicate key|unique/i.test(message)) return 'There is already a request for that date.'
   if (/row-level security|permission denied/i.test(message)) return 'Your role cannot do that.'
   return message

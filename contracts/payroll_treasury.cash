@@ -107,6 +107,7 @@ contract PayrollTreasury(
     bytes20 remitConfigHash,     // hash160(sssPkh + phicPkh + hdmfPkh + birPkh)
     int     genesisTime,         // unix seconds: earliest claimable moment of period 0
     int     periodSeconds,       // 1314873 = one semi-monthly period (31556952 / 24)
+    int     periodsPerMonth,     // 2 semi-monthly, 4 weekly, 22 daily — the divisor for every monthly figure
     bytes20 payrollOfficerPkh,   // company payroll officer / treasurer (make this a multisig in production)
     int     lapseTime            // unix seconds: this funding cycle ends
 ) {
@@ -237,16 +238,22 @@ contract PayrollTreasury(
         if (msc < 500000)  { msc = 500000;  }   // MSC floor    P5,000
         if (msc > 3500000) { msc = 3500000; }   // MSC ceiling  P35,000 — the contribution caps here
 
-        // 15% of the MSC, split 5% employee / 10% employer, and half of the
-        // monthly amount falls due each semi-monthly cut-off: rate/100 / 2.
-        int sssEE = msc * 5  / 200;
-        int sssER = msc * 10 / 200;
+        // 15% of the MSC, split 5% employee / 10% employer. A fraction of the
+        // monthly amount falls due each period: rate/100 / periodsPerMonth,
+        // written as one divisor so it truncates exactly once. At
+        // periodsPerMonth = 2 this is `msc * 5 / 200` — the semi-monthly
+        // expression this contract carried before it learned other cadences,
+        // unchanged to the character.
+        int periodDivisor = 100 * periodsPerMonth;
+        int sssEE = msc * 5  / periodDivisor;
+        int sssER = msc * 10 / periodDivisor;
 
         // Employees' Compensation premium: employer-only, and a flat peso
         // amount rather than a rate — P10/month below MSC P15,000, P30/month at
-        // or above it. Halved for the cut-off, so 500 or 1500 centavos.
-        int sssEC = 500;
-        if (msc >= 1500000) { sssEC = 1500; }
+        // or above it. Divided across the periods in the month, so 500 or 1500
+        // centavos at the semi-monthly cadence.
+        int sssEC = 1000 / periodsPerMonth;
+        if (msc >= 1500000) { sssEC = 3000 / periodsPerMonth; }
 
         // One output covers all three. SSS receives the employee share, the
         // employer share and the EC premium in a single payment, which is how
@@ -260,9 +267,10 @@ contract PayrollTreasury(
         if (phicBase < 1000000)  { phicBase = 1000000;  }   // income floor   P10,000
         if (phicBase > 10000000) { phicBase = 10000000; }   // income ceiling P100,000
 
-        // 5% total premium: 50/1000 * 1/2 (employee share) * 1/2 (cut-off)
-        // == 50/4000, in one division so it truncates exactly once.
-        int phicEE = phicBase * 50 / 4000;
+        // 5% total premium: 50/1000 * 1/2 (employee share) * 1/periodsPerMonth,
+        // in one division so it truncates exactly once. At periodsPerMonth = 2
+        // the divisor is 4000, as it was.
+        int phicEE = phicBase * 50 / (2000 * periodsPerMonth);
         int phicTotal = phicEE * 2;   // employer matches the employee peso for peso
 
         // ── Pag-IBIG (RA 9679, HDMF Circular 460) ── total compensation,
@@ -279,15 +287,16 @@ contract PayrollTreasury(
         int hdmfEeRate = 2;
         if (monthlyCompensation <= 150000) { hdmfEeRate = 1; }
 
-        int hdmfEE = hdmfBase * hdmfEeRate / 200;
-        int hdmfER = hdmfBase * 2 / 200;
+        int hdmfEE = hdmfBase * hdmfEeRate / periodDivisor;
+        int hdmfER = hdmfBase * 2 / periodDivisor;
         int hdmfTotal = hdmfEE + hdmfER;
 
-        // ── Net pay ── gross for the cut-off is half of monthly compensation;
+        // ── Net pay ── gross for the period is monthly compensation divided by
+        // the number of periods in a month;
         // the employee's own three shares and the withholding tax come off it.
         // The employer shares never touch this line — they are additional cost,
         // not a deduction, and conflating the two is how workers get shorted.
-        int gross = monthlyCompensation / 2;
+        int gross = monthlyCompensation / periodsPerMonth;
         int net = gross - sssEE - phicEE - hdmfEE - tax;
 
         // A non-positive net means the record is misconfigured (a tax figure

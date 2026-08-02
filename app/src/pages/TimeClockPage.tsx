@@ -21,7 +21,15 @@ import { formatPeso, formatWhen, truncateHex } from '../lib/format'
 import { useSession } from '../auth/session'
 import { useProofView } from '../view/proof-view'
 import { fileOvertime, useOvertime } from '../data/overtime-store'
-import { MAX_OVERTIME_MINUTES_PER_DAY, overtimePay } from '@domain/index'
+import {
+  DAY_CLASSIFICATIONS,
+  DAY_LABELS,
+  MAX_OVERTIME_MINUTES_PER_DAY,
+  hourFactorBasisPoints,
+  nightMinutesIn,
+  premiumPay,
+  type DayClassification,
+} from '@domain/index'
 
 /**
  * /my/time — the employee's clock, and the moment attendance becomes a fact.
@@ -49,6 +57,7 @@ export default function TimeClockPage() {
   const { requests: overtime, reload: reloadOvertime } = useOvertime()
   const [otMinutes, setOtMinutes] = useState('120')
   const [otReason, setOtReason] = useState('')
+  const [otDay, setOtDay] = useState<DayClassification>('ordinary')
   const [otNote, setOtNote] = useState<string | null>(null)
 
   if (!state) return <Loading />
@@ -84,6 +93,12 @@ export default function TimeClockPage() {
     (day) => day.timeOut !== undefined && day.workDate === workDateOf(Math.floor(Date.now() / 1000)),
   )
   const workedBp = settledToday.reduce((total, day) => total + workedBasisPoints(day), 0)
+
+  // Art. 86 minutes, read off the punch log rather than asked for. A worker
+  // should not have to know the night window exists in order to be paid for it.
+  const nightMinutesToday = days
+    .filter((day) => day.workDate === workDateOf(Math.floor(Date.now() / 1000)))
+    .reduce((total, day) => total + nightMinutesIn(day.timeIn, day.timeOut ?? day.timeIn), 0)
   const earnedToday =
     record === undefined
       ? null
@@ -283,7 +298,7 @@ export default function TimeClockPage() {
       <Card>
         <CardHeader
           title="Overtime"
-          hint="Beyond the standard day. Filing does not earn it — HR has to approve the request first."
+          hint="Beyond the standard day. Filing does not earn it — HR has to approve the request first. The rate depends on what kind of day it was: Art. 87 premiums compound with Art. 86 night differential."
         />
         <div className="card-body">
           <div className="row g-3 align-items-end">
@@ -324,6 +339,8 @@ export default function TimeClockPage() {
                     workDate: workDateOf(Math.floor(Date.now() / 1000)),
                     minutes: Number(otMinutes),
                     reason: otReason.trim(),
+                    dayClassification: otDay,
+                    nightMinutes: Math.min(nightMinutesToday, Number(otMinutes)),
                   }).then((result) => {
                     setOtNote(result.ok ? 'Filed. It earns nothing until HR approves it.' : (result.error ?? 'Could not file that.'))
                     if (result.ok) setOtReason('')
@@ -334,15 +351,51 @@ export default function TimeClockPage() {
                 File request
               </button>
             </div>
+            <div className="col-md-6">
+              <label className="form-label fs-12 mb-1" htmlFor="ot_day">
+                What kind of day was this?
+              </label>
+              <select
+                id="ot_day"
+                className="form-select"
+                value={otDay}
+                onChange={(e) => setOtDay(e.target.value as DayClassification)}
+              >
+                {DAY_CLASSIFICATIONS.map((option) => (
+                  <option key={option} value={option}>
+                    {DAY_LABELS[option]}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {record !== undefined && Number(otMinutes) > 0 ? (
               <div className="col-12">
-                <p className="fs-12 mb-0 text-muted">
-                  Worth{' '}
-                  <span className="fw-medium">
-                    {formatPeso(overtimePay(record.commitment.monthlyBasic, Number(otMinutes) || 0))}
-                  </span>{' '}
-                  at Art. 87 rates (hourly + 25%) — <em>if</em> approved.
-                </p>
+                {(() => {
+                  const minutes = Number(otMinutes) || 0
+                  const night = Math.min(nightMinutesToday, minutes)
+                  const dayPortion = minutes - night
+                  const basic = record.commitment.monthlyBasic
+                  const worth =
+                    premiumPay(basic, dayPortion, { day: otDay, overtime: true, night: false }) +
+                    premiumPay(basic, night, { day: otDay, overtime: true, night: true })
+                  const bp = hourFactorBasisPoints({ day: otDay, overtime: true, night: false })
+
+                  return (
+                    <p className="fs-12 mb-0 text-muted">
+                      Worth <span className="fw-medium">{formatPeso(worth)}</span> — at{' '}
+                      {(Number(bp) / 100).toFixed(bp % 100n === 0n ? 0 : 1)}% of the ordinary
+                      hourly rate
+                      {night > 0 ? (
+                        <>
+                          , of which <span className="fw-medium">{night} min</span> fall between
+                          22:00 and 06:00 and carry a further 10% (Art. 86)
+                        </>
+                      ) : null}
+                      . <em>If</em> approved.
+                    </p>
+                  )
+                })()}
               </div>
             ) : null}
             {otNote ? (

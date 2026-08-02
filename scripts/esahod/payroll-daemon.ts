@@ -96,6 +96,7 @@ const { treasury, vault } = deployEsahod(
     remitConfigHash: hexToBin(deployment.remitConfigHash!),
     genesisTime,
     periodSeconds,
+    periodsPerMonth: BigInt(deployment.periodsPerMonth ?? '2'),
     payrollOfficerPkh: toBytes20(deployment.payrollOfficerPkh!),
     lapseTime: BigInt(deployment.lapseTime!),
   },

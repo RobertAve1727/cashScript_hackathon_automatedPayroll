@@ -1,13 +1,14 @@
 {
-  "employmentCategory": "afb8ae9d4c3b2ad2ba4e85b443469be4171291fa8b2406494a72e7fbba04b4e1",
-  "pesoCategory": "ab7c3787bf6b678829c14b8b4d20117548d5fcf819e5733b4eef0b85d2925d6d",
+  "employmentCategory": "8f6b96a033b14392beaed59a0d601c66f6694d7376f917d90c468e7b59e621ff",
+  "pesoCategory": "412ba936e7924d708fff27987503f7c0f26b8b04dd8aff3340c022f37095824d",
   "remitConfigHash": "64df470a22c6825d8d109579b32c0957c1fbf133",
-  "genesisTime": "1779028622",
+  "genesisTime": "1779064746",
   "periodSeconds": "1314873",
-  "lapseTime": "1817138987",
-  "treasuryAddress": "bchtest:p0862jujg95ufgvkdspeatw7nn9v35jqz50xrepd9lqu86psghg9sc4ufe08e",
-  "vaultAddress": "bchtest:pwhm3arc557kzt79kp97gnmt370r3e2yv2kqxjck8ygrrz4zhv0q5lfhw4hs8",
-  "vaultLockingBytecode": "aa20afb8f478a53d612fc5b04be44f6b8f9e38e54462ac034b163910318aa2bb1e0a87",
+  "lapseTime": "1817175111",
+  "treasuryAddress": "bchtest:pv7hjzqu3aytkrg863szw36fr02v34r8epsl5ny3mgkhm79dls4372x0xet53",
+  "vaultAddress": "bchtest:pvh2vvyte34p02uccc90l37rna000z57vhmwjmkjr25j6seqn7c8gzpxqtv7g",
+  "vaultLockingBytecode": "aa202ea6308bcc6a17ab98c60affc7c39f5ef78a9e65f6e96ed21aa92d43209fb07487",
   "payrollOfficerPkh": "20c494fb2839c9fbfb422667283cc982cff2870d",
-  "hrPkh": "4b28d3abb5e378ac57e1f1dab34202fc7d457e82"
+  "hrPkh": "4b28d3abb5e378ac57e1f1dab34202fc7d457e82",
+  "periodsPerMonth": "2"
 }

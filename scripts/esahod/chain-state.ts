@@ -15,6 +15,7 @@ const deployed = deployEsahod(
     remitConfigHash: hexToBin(d.remitConfigHash!),
     genesisTime: BigInt(d.genesisTime!),
     periodSeconds: BigInt(d.periodSeconds!),
+    periodsPerMonth: BigInt(d.periodsPerMonth ?? '2'),
     payrollOfficerPkh: pkhOf(keyFromWif(requireEnv('ESAHOD_OFFICER_WIF'))),
     lapseTime: BigInt(d.lapseTime!),
   },

@@ -1,5 +1,10 @@
 import { useState } from 'react'
-import { hourlyRate, overtimePay } from '@domain/index'
+import {
+  DAY_LABELS,
+  hourFactorBasisPoints,
+  hourlyRate,
+  premiumPay,
+} from '@domain/index'
 import { useChainState } from '../chain/use-chain'
 import { decideOvertime, useOvertime } from '../data/overtime-store'
 import { hasSupabase } from '../data/supabase'
@@ -88,7 +93,7 @@ export default function OvertimePage() {
       <Card>
         <CardHeader
           title="Overtime requests"
-          hint="Hours beyond the standard day are worth nothing until approved. The premium shown is Art. 87 — the regular hourly rate plus 25% — computed by the same function payroll uses."
+          hint="Hours beyond the standard day are worth nothing until approved. The premium shown compounds Art. 87 overtime with the Art. 91-94 day type and Art. 86 night differential — computed by the same function payroll uses, so this is the exact amount being approved."
         />
         <div className="card-body p-0">
           {loading ? (
@@ -116,7 +121,16 @@ export default function OvertimePage() {
                   {requests.map((request, index) => {
                     const employee = employeeFor(index)
                     const basic = employee?.commitment.monthlyBasic ?? 0n
-                    const pay = overtimePay(basic, request.minutes)
+                    // The figure HR approves is the one the premium engine
+                    // produces — day type and night minutes included. Approving
+                    // an ordinary-day number for a holiday shift would be
+                    // approving the wrong amount.
+                    const night = Math.min(request.nightMinutes, request.minutes)
+                    const kind = { day: request.dayClassification, overtime: true }
+                    const pay =
+                      premiumPay(basic, request.minutes - night, { ...kind, night: false }) +
+                      premiumPay(basic, night, { ...kind, night: true })
+                    const bp = hourFactorBasisPoints({ ...kind, night: false })
 
                     return (
                       <tr key={request.id}>
@@ -133,8 +147,19 @@ export default function OvertimePage() {
                             </div>
                           </div>
                         </td>
-                        <td>{request.workDate}</td>
-                        <td className="font-monospace fs-13">{minutesLabel(request.minutes)}</td>
+                        <td>
+                          {request.workDate}
+                          <span className="d-block fs-12 text-muted">
+                            {DAY_LABELS[request.dayClassification]}
+                          </span>
+                        </td>
+                        <td className="font-monospace fs-13">
+                          {minutesLabel(request.minutes)}
+                          <span className="d-block fs-12 text-muted">
+                            {(Number(bp) / 100).toFixed(bp % 100n === 0n ? 0 : 1)}%
+                            {night > 0 ? ` · ${night}m night +10%` : ''}
+                          </span>
+                        </td>
                         <td className="text-truncate" style={{ maxWidth: 220 }}>
                           {request.reason}
                         </td>

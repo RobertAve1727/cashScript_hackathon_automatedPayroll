@@ -41,6 +41,7 @@ async function main(): Promise<void> {
       remitConfigHash: hexToBin(requireEnv('ESAHOD_REMIT_CONFIG_HASH')),
       genesisTime: BigInt(deployment.genesisTime ?? '0'),
       periodSeconds: BigInt(deployment.periodSeconds ?? '0'),
+      periodsPerMonth: BigInt(deployment.periodsPerMonth ?? '2'),
       payrollOfficerPkh: pkhOf(officer),
       lapseTime: BigInt(deployment.lapseTime ?? '0'),
     },

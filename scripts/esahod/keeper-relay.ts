@@ -135,6 +135,7 @@ async function connect() {
       remitConfigHash: hexToBin(deployment.remitConfigHash ?? requireEnv('ESAHOD_REMIT_CONFIG_HASH')),
       genesisTime: BigInt(deployment.genesisTime ?? '0'),
       periodSeconds: BigInt(deployment.periodSeconds ?? '0'),
+      periodsPerMonth: BigInt(deployment.periodsPerMonth ?? '2'),
       payrollOfficerPkh: pkhOf(officer),
       lapseTime: BigInt(deployment.lapseTime ?? '0'),
     },
@@ -217,6 +218,7 @@ async function runPayroll(employeeNo: number): Promise<{ txid: string; period: n
     },
     genesisTime: BigInt(deployment.genesisTime ?? '0'),
     periodSeconds: BigInt(deployment.periodSeconds ?? '0'),
+    periodsPerMonth: BigInt(deployment.periodsPerMonth ?? '2'),
   });
 
   const receipt = await builder.send();

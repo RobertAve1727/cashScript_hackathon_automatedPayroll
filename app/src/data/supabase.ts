@@ -135,6 +135,17 @@ export interface OvertimeRow {
   decided_by: string | null
   decided_at: string | null
   decision_note: string | null
+  /** Art. 91-94 day type — HR's recorded decision, not derivable from punches. */
+  day_classification:
+    | 'ordinary'
+    | 'rest_day'
+    | 'special_non_working'
+    | 'special_non_working_rest_day'
+    | 'regular_holiday'
+    | 'regular_holiday_rest_day'
+    | 'special_working'
+  /** Art. 86 minutes between 22:00 and 06:00, derived from the punch log. */
+  night_minutes: number
 }
 
 export interface ProfileRow {

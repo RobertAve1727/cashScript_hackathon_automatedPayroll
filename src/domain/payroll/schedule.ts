@@ -13,18 +13,27 @@
  * thing the statutory engine needs in order to divide a monthly obligation
  * exactly (see `allocateMonthlyAmount`).
  *
- * ── WHAT THE DEPLOYED COVENANT SUPPORTS, STATED PLAINLY ─────────────────
+ * ── WHAT THE COVENANT SUPPORTS, STATED PLAINLY ──────────────────────────
  *
- * `contracts/payroll_treasury.cash` hardcodes the semi-monthly divisor: it
- * computes `msc * 5 / 200` and `gross = monthlyCompensation / 2`. Its
- * `periodSeconds` constructor parameter controls only WHEN a period becomes
- * claimable, not how much it pays — deploying it with `periodSeconds = 86400`
- * would pay half a month's salary every day, which is a bug and not a feature.
+ * All of them. `contracts/payroll_treasury.cash` takes `periodsPerMonth` as a
+ * constructor argument and divides every monthly figure by it, so a treasury
+ * deployed with 4 settles a weekly payroll and one deployed with 22 settles a
+ * daily one. `tests/infrastructure/esahod/cadence.test.ts` proves both on the
+ * real Bitcoin Cash VM.
  *
- * Changing cadence on chain therefore means changing two constants in the
- * covenant and redeploying, not flipping a flag. This module is the engine
- * that already computes any cadence correctly and the schedules the UI offers;
- * `SEMI_MONTHLY` is the one the currently deployed covenant settles.
+ * It used to hardcode the semi-monthly divisor — `msc * 5 / 200` and
+ * `gross = monthlyCompensation / 2` — and back then `periodSeconds` controlled
+ * only WHEN a period became claimable, not how much it paid. Deploying that
+ * contract with a daily `periodSeconds` would have paid half a month's salary
+ * every day. That is why this flag existed, and why it was false.
+ *
+ * ── WHAT IS STILL TRUE ──────────────────────────────────────────────────
+ *
+ * `periodsPerMonth` is a constructor argument, so it is part of the treasury's
+ * ADDRESS. One treasury settles one cadence; a company paying some staff weekly
+ * and some semi-monthly deploys two treasuries and funds each. That is inherent
+ * to how a covenant is addressed, not a gap — and it is why an employee's
+ * cadence is an HRIS setting that selects which treasury pays them.
  */
 
 import { InvariantViolationError } from '../errors/invariant-violation.error.js';
@@ -41,12 +50,16 @@ export interface PayrollSchedule {
   /** Human label for the UI. */
   readonly label: string;
   /**
-   * Whether `contracts/payroll_treasury.cash` as currently compiled settles
-   * this cadence. Exactly one schedule is `true`; the rest are engine-ready
-   * and need a covenant redeploy. Kept as data so no screen can claim
-   * on-chain support the contract does not have.
+   * Whether `contracts/payroll_treasury.cash` settles this cadence when a
+   * treasury is deployed for it — proven on the real VM in
+   * `tests/infrastructure/esahod/cadence.test.ts`.
+   *
+   * Kept as data rather than assumed, because it was false for two of these
+   * until the covenant learned `periodsPerMonth`, and the screens read it
+   * rather than asserting anything on their own. `MONTHLY_UNLAWFUL` stays
+   * false: the arithmetic would work and Article 103 does not allow it.
    */
-  readonly settledByDeployedCovenant: boolean;
+  readonly settledByCovenant: boolean;
 }
 
 /**
@@ -63,21 +76,21 @@ export const DAILY: PayrollSchedule = {
   cadence: 'daily',
   periodsPerMonth: WORKING_DAYS_PER_MONTH,
   label: 'Daily — every working day',
-  settledByDeployedCovenant: false,
+  settledByCovenant: true,
 };
 
 export const WEEKLY: PayrollSchedule = {
   cadence: 'weekly',
   periodsPerMonth: 4,
   label: 'Weekly',
-  settledByDeployedCovenant: false,
+  settledByCovenant: true,
 };
 
 export const SEMI_MONTHLY: PayrollSchedule = {
   cadence: 'semi-monthly',
   periodsPerMonth: 2,
   label: 'Semi-monthly — 15th and end of month',
-  settledByDeployedCovenant: true,
+  settledByCovenant: true,
 };
 
 /**
@@ -89,7 +102,7 @@ export const MONTHLY_UNLAWFUL: PayrollSchedule = {
   cadence: 'monthly',
   periodsPerMonth: 1,
   label: 'Monthly — unlawful under Art. 103 (interval exceeds 16 days)',
-  settledByDeployedCovenant: false,
+  settledByCovenant: false,
 };
 
 /** The schedules a company may lawfully choose. */

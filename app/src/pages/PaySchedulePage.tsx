@@ -141,13 +141,13 @@ export default function PaySchedulePage() {
                           and a Bootstrap badge is nowrap by default, so
                           without this the text is clipped mid-word.
                         */}
-                        {option.settledByDeployedCovenant ? (
+                        {option.settledByCovenant ? (
                           <span className="badge badge-soft-success badge-sm fw-normal text-wrap d-inline-block text-start lh-sm">
-                            Settled by the deployed covenant
+                            Settled by the covenant
                           </span>
                         ) : (
-                          <span className="badge badge-soft-warning badge-sm fw-normal text-wrap d-inline-block text-start lh-sm">
-                            Engine-ready — needs a covenant redeploy
+                          <span className="badge badge-soft-danger badge-sm fw-normal text-wrap d-inline-block text-start lh-sm">
+                            Unlawful under Art. 103
                           </span>
                         )}
                       </div>
@@ -253,17 +253,18 @@ export default function PaySchedulePage() {
       {schedule.cadence === SEMI_MONTHLY.cadence ? null : (
         <Card>
           <CardHeader
-            title="What this cadence would need on chain"
-            hint="The engine, the reconciliation and the payday clock follow this setting immediately. The deployed covenant does not."
+            title="What this cadence needs on chain"
+            hint="The covenant settles this cadence — proven on the VM. What it needs is a treasury deployed for it, and two record fields amended."
           />
           <div className="card-body">
             <div className="alert alert-warning mb-3 fs-13">
               <i className="ti ti-alert-triangle me-1"></i>
-              The deployed treasury settles a <strong>semi-monthly</strong> period and only that
-              one: it computes <code>gross = monthlyCompensation / 2</code> and halves every
-              statutory divisor. Paying {employee.name} {schedule.cadence} on chain is a covenant
-              redeploy with two changed constants — and a new treasury address, because{' '}
-              <code>periodSeconds</code> is part of the contract's address.
+              The covenant divides every monthly figure by <code>periodsPerMonth</code>, so it
+              settles a {schedule.cadence} payroll correctly. But that value is a{' '}
+              <strong>constructor argument</strong>, which makes it part of the treasury's address
+              — so paying {employee.name} {schedule.cadence} on chain means funding a treasury
+              deployed for {schedule.periodsPerMonth} periods a month. <em>This</em> treasury is
+              deployed for semi-monthly.
             </div>
 
             <div className="table-responsive">

@@ -12,36 +12,36 @@ import { load, save } from '../chain/persistence'
 /**
  * How often each employee is paid.
  *
- * ══ WHY THIS IS NOT ON CHAIN, AND WHY THAT IS NOT A COMPROMISE ══════════
+ * ══ WHY THIS IS AN HRIS SETTING AND NOT A COMMITMENT FIELD ══════════════
  *
- * It cannot be. Two independent reasons, both structural:
+ * Two structural reasons, and neither is a compromise:
  *
  *   1. The employment commitment is full. All 40 bytes are allocated
  *      (`src/domain/payroll/types.ts`), and the covenant splits and rebuilds
  *      the commitment at fixed offsets — adding a cadence field shifts every
  *      offset and makes every existing NFT unspendable.
  *
- *   2. `periodSeconds` is a constructor argument of `PayrollTreasury`, so it
- *      is part of the contract's address preimage. A different cadence is a
- *      different treasury address holding different funds. Cadence cannot vary
- *      per employee within one treasury; it is a property of the deployment.
+ *   2. Cadence is a property of the TREASURY, not of the employee.
+ *      `periodsPerMonth` and `periodSeconds` are constructor arguments, so
+ *      they are part of the contract's address: one treasury settles one
+ *      cadence. A company paying some staff weekly and some semi-monthly funds
+ *      two treasuries.
  *
- * So cadence lives here, in the HRIS, where the rest of the employment
- * relationship that does not fit in 40 bytes already lives — names, positions,
- * departments, attendance.
+ * So what this setting records is which treasury pays a given employee — the
+ * kind of fact that belongs in the HRIS alongside names, positions and
+ * departments, none of which fit in 40 bytes either.
  *
  * ══ WHAT CHANGING IT ACTUALLY CHANGES ═══════════════════════════════════
  *
- * The statutory engine, the schedule, and whether payroll is due. What it does
- * NOT change is what the deployed covenant settles: that contract computes
- * `gross = monthlyCompensation / 2` and halves every statutory divisor, so it
- * pays a semi-monthly period and nothing else, whatever this setting says.
+ * The statutory engine, the schedule, whether payroll is due — and, once a
+ * treasury exists for that cadence, what the chain settles. The covenant takes
+ * `periodsPerMonth` as a constructor argument and divides every monthly figure
+ * by it, so a treasury deployed with 4 settles a weekly payroll.
  *
- * `PayrollSchedule.settledByDeployedCovenant` is the one place that
- * distinction is recorded, and every screen that offers a cadence is required
- * to show it. Setting an employee to daily makes the engine, the reconciliation
- * and the payday clock daily; making the CHAIN daily is a covenant redeploy
- * with two changed constants and a fresh treasury address.
+ * What it cannot do is move an employee to a cadence no treasury was deployed
+ * for. `periodsPerMonth` is part of the contract's address, so a company paying
+ * two cadences funds two treasuries — and this setting selects which one pays
+ * a given employee.
  *
  * ══ MONTHLY ═════════════════════════════════════════════════════════════
  *

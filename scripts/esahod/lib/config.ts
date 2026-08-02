@@ -63,6 +63,12 @@ export interface DeploymentRecord {
   readonly remitConfigHash?: string;
   readonly genesisTime?: string;
   readonly periodSeconds?: string;
+  /**
+   * Pay periods in a month — the covenant's divisor for every monthly figure,
+   * and part of the treasury's address. A deployment settles exactly one
+   * cadence; a company running two deploys two treasuries.
+   */
+  readonly periodsPerMonth?: string;
   readonly lapseTime?: string;
   readonly treasuryAddress?: string;
   readonly vaultAddress?: string;

@@ -78,9 +78,9 @@ export {
   type EmploymentTerms,
 } from './payroll/commitment.js';
 
-// Pay cadence: the engine computes any schedule exactly; the deployed covenant
-// settles semi-monthly. `PayrollSchedule.settledByDeployedCovenant` is the
-// single place that distinction is recorded.
+// Pay cadence. The covenant takes `periodsPerMonth` as a constructor argument,
+// so it settles any of these — one treasury per cadence, because that argument
+// is part of the contract's address.
 export {
   DAILY,
   MONTHLY_UNLAWFUL,
@@ -102,6 +102,27 @@ export {
   type PayrollCadence,
   type PayrollSchedule,
 } from './payroll/schedule.js';
+// Night differential, rest-day and holiday premiums. Every premium in the
+// Labor Code is a multiplier on the hourly rate and they COMPOUND, so an
+// overtime night hour on a regular holiday is 200% x 130% x 110% = 286%.
+export {
+  DAY_CLASSIFICATIONS,
+  DAY_LABELS,
+  NIGHT_ENDS_HOUR,
+  NIGHT_FACTOR_BP,
+  NIGHT_STARTS_HOUR,
+  ORDINARY_BP,
+  PHT_OFFSET_MINUTES,
+  hourFactorBasisPoints,
+  isNightHour,
+  nightMinutesIn,
+  premiumPay,
+  segmentsPay,
+  unworkedDayPay,
+  type DayClassification,
+  type HourKind,
+  type WorkSegment,
+} from './attendance/premiums.js';
 export {
   allocateMonthlyAmount,
   allocateMonthlyAmountAcrossMonth,

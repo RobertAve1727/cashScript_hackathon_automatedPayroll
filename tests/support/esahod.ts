@@ -31,6 +31,9 @@ import { buildPaySalaryTransaction } from '../../src/infrastructure/blockchain/e
 export const EMPLOYMENT_CATEGORY = '9d1f7a3c04b8e25610fd93ac7b41e8025f6c3d9018be74a2c5031f8d6e2b4a70';
 export const PESO_CATEGORY = '31c8b60f9a24d75e08163bf4ce9207da5b8e41306c7fa9d2185e30bc47f6a9e1';
 export const PERIOD_SECONDS = 1_314_873n;
+/** Pay periods in a month. Part of the treasury's address, so one treasury settles one cadence. */
+export const PERIODS_PER_MONTH = 2n;
+
 const NOW = BigInt(Math.floor(Date.now() / 1000));
 // The demo trick from the architecture doc: periods 0-4 are already
 // claimable, period 5 is genuinely ~15 days out.
@@ -55,7 +58,11 @@ export function hexToBytes(hex: string): Uint8Array {
   return Uint8Array.from(Buffer.from(hex, 'hex'));
 }
 
-export function deploy(provider: MockNetworkProvider): EsahodDeployment {
+export function deploy(
+  provider: MockNetworkProvider,
+  periodsPerMonth: bigint = PERIODS_PER_MONTH,
+  periodSeconds: bigint = PERIOD_SECONDS,
+): EsahodDeployment {
   return deployEsahod(
     provider,
     {
@@ -63,7 +70,8 @@ export function deploy(provider: MockNetworkProvider): EsahodDeployment {
       pesoCategory: hexToBytes(PESO_CATEGORY),
       remitConfigHash,
       genesisTime: GENESIS_TIME,
-      periodSeconds: PERIOD_SECONDS,
+      periodSeconds,
+      periodsPerMonth,
       payrollOfficerPkh: utils.hash160(officer.getPublicKey()),
       lapseTime: LAPSE_TIME,
     },
@@ -86,11 +94,18 @@ export interface FundScenarioOptions {
   readonly status?: 0 | 1;
   /** Override the NFT's token category — used by the wrong-category attack. */
   readonly nftCategory?: string;
+  /** Deploy the treasury for a cadence other than semi-monthly. */
+  readonly periodsPerMonth?: bigint;
+  readonly periodSeconds?: bigint;
 }
 
 export function fundScenario(fixture: FixtureEmployee = FIXTURE_ANALYST, options: FundScenarioOptions = {}): Scenario {
   const provider = new MockNetworkProvider();
-  const deployment = deploy(provider);
+  const deployment = deploy(
+    provider,
+    options.periodsPerMonth ?? PERIODS_PER_MONTH,
+    options.periodSeconds ?? PERIOD_SECONDS,
+  );
 
   const treasuryUtxo = randomUtxo({
     satoshis: 5_000_000n,
@@ -120,7 +135,11 @@ export function fundScenario(fixture: FixtureEmployee = FIXTURE_ANALYST, options
   return { provider, deployment, treasuryUtxo, nftUtxo, feeUtxo };
 }
 
-export function buildTx(scenario: Scenario) {
+export function buildTx(
+  scenario: Scenario,
+  periodSeconds: bigint = PERIOD_SECONDS,
+  periodsPerMonth: bigint = PERIODS_PER_MONTH,
+) {
   return buildPaySalaryTransaction({
     provider: scenario.provider,
     treasury: scenario.deployment.treasury,
@@ -132,6 +151,7 @@ export function buildTx(scenario: Scenario) {
     feeChangeAddress: feePayerLockingBytecode,
     remitConfig: { sssPkh, phicPkh, hdmfPkh, birPkh },
     genesisTime: GENESIS_TIME,
-    periodSeconds: PERIOD_SECONDS,
+    periodSeconds,
+    periodsPerMonth,
   });
 }

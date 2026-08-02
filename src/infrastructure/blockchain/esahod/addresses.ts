@@ -18,6 +18,16 @@ export interface PayrollTreasuryParams {
   readonly remitConfigHash: Uint8Array;
   readonly genesisTime: bigint;
   readonly periodSeconds: bigint;
+  /**
+   * Pay periods in a month — 2 semi-monthly, 4 weekly, 22 daily. The divisor
+   * the covenant applies to every monthly figure.
+   *
+   * It is a CONSTRUCTOR argument, so it is part of the contract's address: one
+   * treasury settles one cadence, and a company paying two cadences deploys two
+   * treasuries. That is inherent, not a limitation of this code — the address
+   * IS the hash of these arguments.
+   */
+  readonly periodsPerMonth: bigint;
   readonly payrollOfficerPkh: Uint8Array;
   readonly lapseTime: bigint;
 }
@@ -84,6 +94,7 @@ export function deployEsahod(
       treasuryParams.remitConfigHash,
       treasuryParams.genesisTime,
       treasuryParams.periodSeconds,
+      treasuryParams.periodsPerMonth,
       treasuryParams.payrollOfficerPkh,
       treasuryParams.lapseTime,
     ],

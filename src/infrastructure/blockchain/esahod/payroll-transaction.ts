@@ -37,6 +37,13 @@ export interface BuildPaySalaryTransactionOptions {
   readonly remitConfig: RemitConfig;
   readonly genesisTime: bigint;
   readonly periodSeconds: bigint;
+  /**
+   * Pay periods in a month, and it MUST be the value the treasury was deployed
+   * with. The covenant recomputes every amount from it and rejects the
+   * transaction if one centavo differs, so a mismatch here fails with "output 0
+   * must be exactly net pay" rather than anything about cadence.
+   */
+  readonly periodsPerMonth?: bigint;
   readonly feeRateSatsPerByte?: number;
 }
 
@@ -66,6 +73,7 @@ export function buildPaySalaryTransaction(options: BuildPaySalaryTransactionOpti
     remitConfig,
     genesisTime,
     periodSeconds,
+  periodsPerMonth,
     feeRateSatsPerByte = 1,
   } = options;
 
@@ -81,6 +89,7 @@ export function buildPaySalaryTransaction(options: BuildPaySalaryTransactionOpti
     monthlyBasic: commitment.monthlyBasic,
     monthlyAllowance: commitment.monthlyAllowance,
     taxPerPeriod: commitment.taxPerPeriod,
+    ...(periodsPerMonth === undefined ? {} : { periodsPerMonth }),
   });
 
   // The treasury must keep a strictly positive remainder. A zero-amount

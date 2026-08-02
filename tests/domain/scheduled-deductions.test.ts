@@ -221,10 +221,13 @@ describe('the schedule model', () => {
     expect(isLawfulCadence(DAILY)).toBe(true);
   });
 
-  it('states honestly which cadence the deployed covenant actually settles', () => {
-    // Exactly one, so no screen can claim on-chain support the contract lacks.
-    const settled = [DAILY, WEEKLY, SEMI_MONTHLY].filter((s) => s.settledByDeployedCovenant);
+  it('states honestly which cadences the covenant settles', () => {
+    // All three lawful ones, since the covenant takes periodsPerMonth as a
+    // constructor argument — proven on the VM in cadence.test.ts. The unlawful
+    // one stays false: the arithmetic would work and Art. 103 does not allow it.
+    const settled = [DAILY, WEEKLY, SEMI_MONTHLY].filter((s) => s.settledByCovenant);
 
-    expect(settled).toEqual([SEMI_MONTHLY]);
+    expect(settled).toEqual([DAILY, WEEKLY, SEMI_MONTHLY]);
+    expect(MONTHLY_UNLAWFUL.settledByCovenant).toBe(false);
   });
 });

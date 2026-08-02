@@ -21,6 +21,9 @@ import { chipnetProvider, keyFromWif, pkhOf, requireEnv, toBytes20, writeDeploym
 // Edit these before running against a real company deployment.
 const EPHP_TOTAL_UNITS = 500_000_000n; // PHP 5,000,000.00 in centavos
 const PERIOD_SECONDS = 1_314_873n;
+/** Pay periods in a month. Part of the treasury's address, so one treasury settles one cadence. */
+const PERIODS_PER_MONTH = 2n;
+
 const GENESIS_PERIODS_IN_PAST = 5n; // periods 0-4 immediately claimable — the demo trick
 const LAPSE_SECONDS_FROM_NOW = 365n * 86_400n;
 const GENESIS_DUST_SATOSHIS = 10_000n;
@@ -59,7 +62,13 @@ async function main(): Promise<void> {
   // output at vout 1, say) silently mints NOTHING while this script happily
   // records a category id that nothing on chain will ever match.
   const spendable = funding.filter((utxo) => utxo.token === undefined);
-  const genesisCapable = spendable.filter((utxo) => utxo.vout === 0);
+  // Largest first. A genesis coin must both sit at vout 0 AND carry enough
+  // satoshis to fund the outputs plus the fee — taking whichever vout-0 coin
+  // came back first fails on a wallet holding a 1,000-sat dust coin, with an
+  // arithmetic message about a negative surplus that names nothing.
+  const genesisCapable = spendable
+    .filter((utxo) => utxo.vout === 0)
+    .toSorted((a, b) => (b.satoshis > a.satoshis ? 1 : b.satoshis < a.satoshis ? -1 : 0));
 
   if (genesisCapable.length < 2) {
     throw new Error(
@@ -97,6 +106,7 @@ async function main(): Promise<void> {
       remitConfigHash,
       genesisTime,
       periodSeconds: PERIOD_SECONDS,
+      periodsPerMonth: PERIODS_PER_MONTH,
       payrollOfficerPkh: pkhOf(officer),
       lapseTime,
     },
@@ -158,6 +168,7 @@ async function main(): Promise<void> {
     remitConfigHash: binToHex(remitConfigHash),
     genesisTime: genesisTime.toString(),
     periodSeconds: PERIOD_SECONDS.toString(),
+    periodsPerMonth: PERIODS_PER_MONTH.toString(),
     lapseTime: lapseTime.toString(),
     treasuryAddress: deployment.treasury.address,
     vaultAddress: deployment.vault.address,
