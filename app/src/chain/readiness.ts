@@ -1,9 +1,4 @@
-import {
-  SEMI_MONTHLY,
-  payableAt,
-  periodSecondsFor,
-  type PayrollSchedule,
-} from '@domain/index'
+import { SEMI_MONTHLY, periodSecondsFor, type PayrollSchedule } from '@domain/index'
 import type { EmploymentCommitment } from '@domain/payroll/commitment'
 import { EMPLOYMENT_STATUS_ACTIVE } from '@domain/payroll/types'
 
@@ -27,13 +22,16 @@ import { EMPLOYMENT_STATUS_ACTIVE } from '@domain/payroll/types'
  * watching. This module is the same arithmetic as the covenant and as the
  * daemon, in the one place the screens can ask.
  *
- * ══ CADENCE IS WHAT MAKES IT MOVE ═══════════════════════════════════════
+ * ══ THE CLOCK BELONGS TO THE TREASURY ═══════════════════════════════════
  *
- * `periodSecondsFor(schedule)` is the whole reason changing an employee's
- * cadence changes anything a person can see: shorten the period and the next
- * payday moves closer, so a record that was not due becomes due. That is what
- * "payroll ready" means here, and it is derived, never stored — there is no
- * flag anyone can set to make an employee payable early.
+ * `periodSeconds` is a constructor argument of the covenant, so it is fixed at
+ * deployment and part of the contract's address. An employee's HRIS cadence
+ * decides which treasury pays them; it does not change how fast that treasury's
+ * clock ticks. See `esahodPeriodSeconds` below for what went wrong when this
+ * module confused the two.
+ *
+ * Readiness is derived, never stored — there is no flag anyone can set to make
+ * an employee payable early.
  */
 
 export type ReadinessReason = 'due' | 'not-yet' | 'suspended' | 'window-exhausted'
@@ -90,6 +88,39 @@ export function genesisIsConfigured(): boolean {
   return configured !== undefined && configured !== '' && Number.isFinite(Number(configured))
 }
 
+/**
+ * How long one period lasts ON THE DEPLOYED TREASURY, seconds.
+ *
+ * ══ WHY THIS IS NOT DERIVED FROM THE EMPLOYEE'S CADENCE ═════════════════
+ *
+ * The covenant's rule is `tx.time >= genesisTime + period * periodSeconds`,
+ * and `periodSeconds` is a CONSTRUCTOR argument — a property of the treasury,
+ * fixed at deployment and baked into its address. It is not a property of the
+ * employee.
+ *
+ * This screen used to compute the payday from the employee's HRIS cadence
+ * instead, and the two are not the same number. An employee set to weekly
+ * against a semi-monthly treasury got a clock ticking twice as fast as the
+ * chain's: the roster offered "Run payroll" on the 3rd of July for a period
+ * the network would not accept until the 17th of August, and the run failed
+ * with `bad-txns-nonfinal` — six weeks early, with an error naming nothing.
+ *
+ * The HRIS cadence decides WHICH treasury pays an employee. This decides when
+ * THIS treasury will accept a payment. Reading the second from the first is
+ * how the screen came to disagree with the chain.
+ */
+export function esahodPeriodSeconds(schedule: PayrollSchedule): bigint {
+  const configured = import.meta.env.VITE_ESAHOD_PERIOD_SECONDS
+
+  if (configured !== undefined && configured !== '' && Number.isFinite(Number(configured))) {
+    return BigInt(configured)
+  }
+
+  // No deployment configured: the demo chain has no covenant of its own, so
+  // the schedule is the only clock there is.
+  return periodSecondsFor(schedule)
+}
+
 export function payrollReadiness(
   commitment: EmploymentCommitment,
   schedule: PayrollSchedule,
@@ -97,7 +128,7 @@ export function payrollReadiness(
   now: bigint = BigInt(Math.floor(Date.now() / 1000)),
 ): Readiness {
   const period = commitment.nextPeriod
-  const nextPaydayAt = payableAt(genesisTime, period, schedule)
+  const nextPaydayAt = genesisTime + BigInt(period) * esahodPeriodSeconds(schedule)
   const secondsRemaining = nextPaydayAt > now ? nextPaydayAt - now : 0n
 
   // Status and window first: an employee who is suspended is not "due in three
@@ -132,7 +163,7 @@ export function payrollReadiness(
       period,
       nextPaydayAt,
       secondsRemaining,
-      detail: `Period ${period} becomes claimable in ${humanise(secondsRemaining)}, on the ${schedule.cadence} schedule.`,
+      detail: `Period ${period} becomes claimable in ${humanise(secondsRemaining)} — the treasury's own clock, whatever cadence the HRIS records.`,
     }
   }
 
