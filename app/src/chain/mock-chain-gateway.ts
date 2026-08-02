@@ -21,6 +21,7 @@ import type {
   ChainGateway,
   EmployeeRecord,
   PayrollRun,
+  RunProgress,
   TreasurySnapshot,
   TxOutput,
 } from './gateway';
@@ -109,7 +110,13 @@ export class MockChainGateway implements ChainGateway {
     return this.employees.map((employee) => this.toRecord(employee));
   }
 
-  async runPayroll(employeeNo: number): Promise<PayrollRun> {
+  async runPayroll(employeeNo: number, onProgress?: RunProgress): Promise<PayrollRun> {
+    // The demo chain is instant, so these fire back to back. They are emitted
+    // anyway: the screens must not need to know which chain they are on, and a
+    // stage sequence that only exists on chipnet would be one more thing that
+    // works in the demo and not in the build a judge runs.
+    onProgress?.('reading');
+    onProgress?.('building');
     const employee = this.findEmployee(employeeNo);
     const record = decodeCommitment(employee.commitment);
 

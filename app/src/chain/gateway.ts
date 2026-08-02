@@ -10,11 +10,27 @@ import type { Deductions } from '@domain/statutory/deductions';
  * chipnet adapter implements the same four methods over ElectrumNetworkProvider
  * and the real transaction builder tomorrow, and no screen changes.
  */
+/**
+ * Where a payroll run has got to.
+ *
+ * Reported rather than guessed. Broadcasting to a real chain takes seconds, and
+ * a spinner that says nothing leaves the operator unable to tell a slow network
+ * from a wedged one — so each stage is emitted when it actually begins, and a
+ * screen showing "Broadcasting" means the request is genuinely in flight.
+ */
+export type RunStage =
+  | 'reading'      // fetching the current treasury and record from the chain
+  | 'building'     // assembling the transaction
+  | 'broadcasting' // in flight to the network
+  | 'confirming';  // re-reading the chain to show the result
+
+export type RunProgress = (stage: RunStage) => void;
+
 export interface ChainGateway {
   getTreasury(): Promise<TreasurySnapshot>;
   getEmployees(): Promise<readonly EmployeeRecord[]>;
-  /** Build + broadcast one lawful semi-monthly disbursement for one employee. */
-  runPayroll(employeeNo: number): Promise<PayrollRun>;
+  /** Build + broadcast one lawful disbursement for one employee. */
+  runPayroll(employeeNo: number, onProgress?: RunProgress): Promise<PayrollRun>;
   /** HR-signed amendment of the employment NFT commitment. */
   amend(employeeNo: number, action: AmendAction): Promise<AmendResult>;
   /**

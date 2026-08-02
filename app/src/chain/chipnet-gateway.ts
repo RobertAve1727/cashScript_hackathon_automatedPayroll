@@ -16,6 +16,7 @@ import type {
   ChainGateway,
   EmployeeRecord,
   PayrollRun,
+  RunProgress,
   TreasurySnapshot,
   TxOutput,
 } from './gateway'
@@ -261,12 +262,17 @@ export class ChipnetChainGateway implements ChainGateway {
       .sort((a, b) => a.employeeNo - b.employeeNo)
   }
 
-  async runPayroll(employeeNo: number): Promise<PayrollRun> {
+  async runPayroll(employeeNo: number, onProgress?: RunProgress): Promise<PayrollRun> {
+    onProgress?.('reading')
     const before = await this.getTreasury()
     const employees = await this.getEmployees()
     const employee = employees.find((candidate) => candidate.employeeNo === employeeNo)
     if (!employee) throw new Error(`No employment record on chain for employee #${employeeNo}`)
 
+    // The relay builds, signs the fee input and broadcasts in one request, so
+    // these two stages are one round trip from here. Reporting them separately
+    // would be inventing detail the adapter does not have.
+    onProgress?.('broadcasting')
     const { txid } = await relay<{ txid: string; period: number }>('/payroll', { employeeNo })
 
     // Deductions are recomputed here rather than returned by the relay, so the
@@ -279,6 +285,7 @@ export class ChipnetChainGateway implements ChainGateway {
       taxPerPeriod: employee.commitment.taxPerPeriod,
     })
 
+    onProgress?.('confirming')
     const after = await this.getTreasury()
     this.notify()
 

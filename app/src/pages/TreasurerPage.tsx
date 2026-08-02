@@ -3,7 +3,7 @@ import { Fragment, useState } from 'react'
 import { EMPLOYMENT_STATUS_ACTIVE } from '@domain/payroll/types'
 import { computeDeductions } from '@domain/statutory/deductions'
 
-import type { PayrollRun } from '../chain/gateway'
+import type { PayrollRun, RunStage } from '../chain/gateway'
 // Writes go through the ACTIVE gateway, not the mock.
 //
 // Importing `chainGateway` from mock-chain-gateway directly — which this file
@@ -26,11 +26,44 @@ import { useProofView } from '../view/proof-view'
  * powerless: the Run buttons trigger disbursement but cannot redirect a
  * centavo, because every payee is enforced by the covenant.
  */
+/**
+ * What each stage means, in the operator's terms rather than the adapter's.
+ *
+ * Deliberately not a percentage. There is no honest denominator — a broadcast
+ * takes as long as the network takes — and a bar that creeps to 90% and stops
+ * is a worse lie than no bar at all.
+ */
+const STAGE_LABEL: Readonly<Record<RunStage, string>> = {
+  reading: 'Reading the chain…',
+  building: 'Building the transaction…',
+  broadcasting: 'Broadcasting…',
+  confirming: 'Confirming…',
+}
+
+const STAGE_DETAIL: Readonly<Record<RunStage, string>> = {
+  reading: 'Fetching the treasury balance and this employee’s record from chipnet.',
+  building: 'Assembling the seven outputs the covenant will check.',
+  broadcasting:
+    'The keeper is signing the fee input and sending the transaction. Every payee and amount is already fixed — this step cannot change them.',
+  confirming: 'Re-reading the chain so the figures below are the chain’s, not a prediction.',
+}
+
+const STAGES: readonly RunStage[] = ['reading', 'building', 'broadcasting', 'confirming']
+
 export default function TreasurerPage() {
   const state = useChainState()
   const [runs, setRuns] = useState<PayrollRun[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+  /**
+   * Which employee is being paid, and how far it has got. Broadcasting to a
+   * real chain takes seconds; a disabled button alone leaves an operator unable
+   * to tell a slow network from a wedged one, which is the difference between
+   * waiting and refreshing the page mid-broadcast.
+   */
+  const [running, setRunning] = useState<{ employeeNo: number | 'all'; stage: RunStage } | null>(
+    null,
+  )
   const proofView = useProofView()
 
   if (!state) return <Loading />
@@ -46,13 +79,17 @@ export default function TreasurerPage() {
   const runOne = async (employeeNo: number): Promise<void> => {
     setBusy(true)
     setError(null)
+    setRunning({ employeeNo, stage: 'reading' })
     try {
-      const run = await activeGateway().runPayroll(employeeNo)
+      const run = await activeGateway().runPayroll(employeeNo, (stage) =>
+        setRunning({ employeeNo, stage }),
+      )
       setRuns((previous) => [run, ...previous])
     } catch (thrown) {
       setError(errorMessage(thrown))
     } finally {
       setBusy(false)
+      setRunning(null)
     }
   }
 
@@ -63,7 +100,12 @@ export default function TreasurerPage() {
     const failures: string[] = []
     for (const employee of employees) {
       try {
-        collected.push(await activeGateway().runPayroll(employee.employeeNo))
+        setRunning({ employeeNo: 'all', stage: 'reading' })
+        collected.push(
+          await activeGateway().runPayroll(employee.employeeNo, (stage) =>
+            setRunning({ employeeNo: 'all', stage }),
+          ),
+        )
       } catch (thrown) {
         failures.push(errorMessage(thrown))
       }
@@ -71,6 +113,7 @@ export default function TreasurerPage() {
     if (collected.length > 0) setRuns((previous) => [...collected.reverse(), ...previous])
     if (failures.length > 0) setError(failures.join(' '))
     setBusy(false)
+    setRunning(null)
   }
 
   return (
@@ -83,12 +126,68 @@ export default function TreasurerPage() {
             disabled={busy || activeCount === 0}
             onClick={() => void runAll()}
           >
-            <i className="ti ti-player-play me-1"></i>
-            Run all — permissionless, no signature
+            {running?.employeeNo === 'all' ? (
+              <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+            ) : (
+              <i className="ti ti-player-play me-1"></i>
+            )}
+            {running?.employeeNo === 'all'
+              ? STAGE_LABEL[running.stage]
+              : 'Run all — permissionless, no signature'}
           </button>
         </PageHeader>
 
         <ErrorNote message={error} />
+
+        {/*
+          Shown while a run is in flight. Not a modal: a modal would block the
+          roster the operator is watching change, and there is nothing here for
+          them to decide — only something to wait for.
+        */}
+        {running ? (
+          <Card>
+            <div className="card-body">
+              <div className="d-flex align-items-center mb-3">
+                <span className="spinner-border spinner-border-sm text-primary me-3" role="status">
+                  <span className="visually-hidden">Working</span>
+                </span>
+                <div>
+                  <h6 className="mb-0">
+                    {STAGE_LABEL[running.stage]}{' '}
+                    <span className="text-muted fw-normal fs-13">
+                      {running.employeeNo === 'all'
+                        ? '— every payable employee'
+                        : `— employee #${running.employeeNo}`}
+                    </span>
+                  </h6>
+                  <p className="fs-12 text-muted mb-0">{STAGE_DETAIL[running.stage]}</p>
+                </div>
+              </div>
+
+              <div className="d-flex gap-2">
+                {STAGES.map((stage) => {
+                  const at = STAGES.indexOf(running.stage)
+                  const index = STAGES.indexOf(stage)
+
+                  return (
+                    <div
+                      key={stage}
+                      className={`flex-fill rounded ${
+                        index < at ? 'bg-success' : index === at ? 'bg-primary' : 'bg-light'
+                      }`}
+                      style={{ height: 4 }}
+                      title={STAGE_LABEL[stage]}
+                    ></div>
+                  )
+                })}
+              </div>
+              <p className="fs-12 text-muted mb-0 mt-2">
+                This is a real broadcast to chipnet and takes a few seconds. Leaving the page will
+                not stop it — the transaction is the chain’s once it is sent.
+              </p>
+            </div>
+          </Card>
+        ) : null}
 
         <div className="row">
           <div className="col-xl-6 col-md-12 d-flex">
@@ -215,7 +314,18 @@ export default function TreasurerPage() {
                               disabled={busy}
                               onClick={() => void runOne(employee.employeeNo)}
                             >
-                              Run payroll
+                              {running?.employeeNo === employee.employeeNo ? (
+                                <Fragment>
+                                  <span
+                                    className="spinner-border spinner-border-sm me-2"
+                                    role="status"
+                                    aria-hidden="true"
+                                  ></span>
+                                  {STAGE_LABEL[running.stage]}
+                                </Fragment>
+                              ) : (
+                                'Run payroll'
+                              )}
                             </button>
                           ) : (
                             <span
