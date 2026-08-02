@@ -54,12 +54,25 @@ export interface Readiness {
 /**
  * When the treasury's period counter started.
  *
- * On chipnet this is written into `deployment.json` by `01-deploy.ts` and
- * passed in through the environment. Offline the demo back-dates it by five
- * semi-monthly periods, exactly as the deploy script does, so a fresh clone has
- * payable periods immediately instead of a roster that cannot be demonstrated
- * until a fortnight has passed.
+ * On chipnet this is the `genesisTime` that `01-deploy.ts` wrote into
+ * `deployment.json` and baked into the treasury's constructor — the same number
+ * the covenant checks `tx.time` against. It has to come from there; a genesis
+ * this app invents is a different contract's clock.
+ *
+ * ══ WHY THE FALLBACK IS FROZEN AT LOAD ══════════════════════════════════
+ *
+ * With no configured value the demo back-dates by five semi-monthly periods, so
+ * a fresh clone has payable periods immediately rather than a roster nobody can
+ * demonstrate for a fortnight.
+ *
+ * Computing that from `Date.now()` on every CALL, which this function used to
+ * do, quietly destroys the thing it exists for: if genesis is always "five
+ * periods ago", then payday is always the same fixed distance from now and the
+ * clock never advances. A record two hours from being due would still be two
+ * hours from being due tomorrow. Freezing it at module load makes time pass.
  */
+const FALLBACK_GENESIS = BigInt(Math.floor(Date.now() / 1000)) - 5n * periodSecondsFor(SEMI_MONTHLY)
+
 export function esahodGenesisTime(): bigint {
   const configured = import.meta.env.VITE_ESAHOD_GENESIS_TIME
 
@@ -67,9 +80,14 @@ export function esahodGenesisTime(): bigint {
     return BigInt(configured)
   }
 
-  const now = BigInt(Math.floor(Date.now() / 1000))
+  return FALLBACK_GENESIS
+}
 
-  return now - 5n * periodSecondsFor(SEMI_MONTHLY)
+/** Whether the payday clock is the deployed contract's or the demo's stand-in. */
+export function genesisIsConfigured(): boolean {
+  const configured = import.meta.env.VITE_ESAHOD_GENESIS_TIME
+
+  return configured !== undefined && configured !== '' && Number.isFinite(Number(configured))
 }
 
 export function payrollReadiness(

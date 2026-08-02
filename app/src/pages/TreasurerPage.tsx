@@ -4,7 +4,14 @@ import { EMPLOYMENT_STATUS_ACTIVE } from '@domain/payroll/types'
 import { computeDeductions } from '@domain/statutory/deductions'
 
 import type { PayrollRun } from '../chain/gateway'
-import { chainGateway } from '../chain/mock-chain-gateway'
+// Writes go through the ACTIVE gateway, not the mock.
+//
+// Importing `chainGateway` from mock-chain-gateway directly — which this file
+// used to do — meant reads came from whichever chain was configured while
+// writes always went to memory. On a chipnet build the treasury tile showed
+// the real balance and "Run payroll" quietly mutated an in-memory copy, so the
+// screen reported a payroll that had not happened.
+import { activeGateway } from '../chain/active-gateway'
 import { errorMessage, useChainState } from '../chain/use-chain'
 import { EmployeeAvatar } from '../components/EmployeeAvatar'
 import { OutputDiagram } from '../components/OutputDiagram'
@@ -36,7 +43,7 @@ export default function TreasurerPage() {
     setBusy(true)
     setError(null)
     try {
-      const run = await chainGateway.runPayroll(employeeNo)
+      const run = await activeGateway().runPayroll(employeeNo)
       setRuns((previous) => [run, ...previous])
     } catch (thrown) {
       setError(errorMessage(thrown))
@@ -52,7 +59,7 @@ export default function TreasurerPage() {
     const failures: string[] = []
     for (const employee of employees) {
       try {
-        collected.push(await chainGateway.runPayroll(employee.employeeNo))
+        collected.push(await activeGateway().runPayroll(employee.employeeNo))
       } catch (thrown) {
         failures.push(errorMessage(thrown))
       }

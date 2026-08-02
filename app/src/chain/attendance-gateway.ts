@@ -136,8 +136,12 @@ function emit(): void {
  * is a real gap — the row exists the moment the tap happens, the anchor
  * arrives when someone with a key broadcasts it.
  */
-function syntheticTxid(employeeNo: number, at: number, salt: number): string {
-  const seed = `${employeeNo}${at}${salt}`
+function syntheticTxid(employeeNo: number, at: number, kind: Punch['kind']): string {
+  // Seeded by the punch itself, never by its position in a result set. Salting
+  // with an ordinal made the write path and the read path mint different ids
+  // for the same punch, so a placeholder anchor changed the moment the page
+  // reloaded — which reads as the record having changed.
+  const seed = `${employeeNo}${at}${kind}`
   let hex = ''
   let carry = 0x9e_37_79_b9
 
@@ -149,12 +153,12 @@ function syntheticTxid(employeeNo: number, at: number, salt: number): string {
   return hex
 }
 
-function anchorOf(punch: Punch, workDate: string, salt = 0): AnchoredPunch {
+function anchorOf(punch: Punch, workDate: string): AnchoredPunch {
   return {
     ...punch,
     workDate,
     payloadHex: bytesToHex(encodePunch(punch)),
-    txid: syntheticTxid(punch.employeeNo, punch.at, salt),
+    txid: syntheticTxid(punch.employeeNo, punch.at, punch.kind),
   }
 }
 
@@ -167,7 +171,6 @@ function anchorOf(punch: Punch, workDate: string, salt = 0): AnchoredPunch {
  */
 class LocalAttendanceGateway implements AttendanceGateway {
   private punches: AnchoredPunch[] = []
-  private salt = 0
 
   constructor() {
     this.punches = load<AnchoredPunch[]>(STORAGE_KEYS.attendance) ?? []
@@ -186,8 +189,7 @@ class LocalAttendanceGateway implements AttendanceGateway {
       )
     }
 
-    this.salt += 1
-    const anchored = anchorOf({ employeeNo, kind, at }, workDate, this.salt)
+    const anchored = anchorOf({ employeeNo, kind, at }, workDate)
     this.punches = [...this.punches, anchored]
 
     save(STORAGE_KEYS.attendance, this.punches)
@@ -279,10 +281,15 @@ class SupabaseAttendanceGateway implements AttendanceGateway {
       .select('work_date, kind, punched_at, payload_hex, anchor_tx_id, employees(employee_no)')
       .order('punched_at', { ascending: true })
 
-    if (error || !data) return []
+    // Throw rather than return []. This module's own doc says an empty list is
+    // a factual claim about whether someone came to work, and a failed query is
+    // not that claim — `useAttendance` surfaces the error and the screens show
+    // it instead of a clean, wrong "nothing recorded yet".
+    if (error) throw new Error(friendly(error.message))
+    if (!data) return []
 
     return foldDays(
-      (data as unknown as PunchRow[]).map((row, index) => {
+      (data as unknown as PunchRow[]).map((row) => {
         const at = Math.floor(new Date(row.punched_at).getTime() / 1000)
         const employeeNo = Number(row.employees?.employee_no ?? 0)
 
@@ -292,7 +299,7 @@ class SupabaseAttendanceGateway implements AttendanceGateway {
           at,
           workDate: row.work_date,
           payloadHex: row.payload_hex,
-          txid: row.anchor_tx_id ?? syntheticTxid(employeeNo, at, index),
+          txid: row.anchor_tx_id ?? syntheticTxid(employeeNo, at, row.kind),
         }
       }),
     )

@@ -454,7 +454,9 @@ way to lose credibility with someone who reads the code.
 | Attack suite | **Real.** Each case builds a valid transaction with one deliberate mutation and asserts the exact `require()` message |
 | Attendance anchor | **Real** transaction builder, VM-accepted, decoded back out of the broadcast bytes in tests |
 | Chipnet deployment | **Real and done.** Genesis, enrolment and one payroll broadcast; txid `fa4e036c01b3296185abe39bdfd05a00621670b2e7cfef7a8cfa31c23855a916` paid five parties atomically |
-| The app's chain data | **Real when configured.** [chipnet-gateway.ts](../app/src/chain/chipnet-gateway.ts) reads live UTXOs at the deployed covenant addresses. It cannot **write**: signing a fee input needs a key, and the browser is the wrong place for one, so runs happen from `scripts/esahod/` |
+| The app's chain data | **Real when configured.** [chipnet-gateway.ts](../app/src/chain/chipnet-gateway.ts) reads live UTXOs at the deployed covenant addresses |
+| The app **writing** to chain | **Real.** "Run payroll" in the browser broadcasts to chipnet through the [keeper relay](../scripts/esahod/keeper-relay.ts). Verified: txid `79f8e66e890de72dd3bb6e7b99b6f426bb95a52a038ac0b515e3e3cf34350fc4` |
+| Issuing a new employment NFT | **Demo chain only, permanently.** The minting baton was destroyed at genesis — that is the forgery protection, so no new record can ever be minted on chain |
 | Sign-in | **Real when configured.** Supabase auth with row-level security deciding what the session may read; falls back to bundled fixtures offline |
 | Attendance punches | **Stored, not yet anchored.** Append-only rows in Postgres — a trigger refuses edits and deletes, so not even the service_role key can rewrite one. The 13 bytes are the real `encodePunch` output; `anchor_tx_id` stays null until someone with a key broadcasts it |
 | Daily/weekly cadence | **Engine-ready, not chain-settled.** HR can set it per employee and the engine, reconciliation and payday clock all follow. The deployed covenant still settles semi-monthly. See §8 |
@@ -465,9 +467,10 @@ Total: **389 tests passing** across 23 files.
 The honest one-line summary:
 
 > The covenants are proven to enforce what we claim, against the real virtual
-> machine, and they are deployed on chipnet with one payroll already broadcast.
-> The frontend reads that chain; it does not write to it, because writing needs
-> a signing key the browser should not hold.
+> machine, and they are deployed on chipnet. The frontend both reads and writes
+> that chain: payroll is broadcast from the browser through a keeper service
+> that holds only a fee key — it cannot redirect a peso, because the covenant
+> pins every payee and every amount.
 
 ---
 

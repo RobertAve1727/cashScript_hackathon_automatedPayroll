@@ -10,7 +10,7 @@
 import { hexToBin } from '@bitauth/libauth';
 import { deployEsahod } from '../../src/infrastructure/blockchain/esahod/addresses.js';
 import { buildPaySalaryTransaction } from '../../src/infrastructure/blockchain/esahod/payroll-transaction.js';
-import { chipnetProvider, keyFromWif, pkhOf, readDeployment, readArg, requireEnv, toBytes20 } from './lib/config.js';
+import { chipnetProvider, keyFromWif, pkhOf, readDeployment, readArg, requireEnv, selectFeeUtxos, toBytes20 } from './lib/config.js';
 
 async function main(): Promise<void> {
   const deployment = await readDeployment();
@@ -56,8 +56,7 @@ async function main(): Promise<void> {
   if (nftUtxo === undefined) throw new Error(`no employment record in the vault for payee ${employeePkhHex}`);
 
   const feeAddress = keeper.unlockP2PKH().generateLockingBytecode();
-  const feeUtxos = (await provider.getUtxosForLockingBytecode(feeAddress)).filter((utxo) => utxo.token === undefined);
-  if (feeUtxos.length === 0) throw new Error('the keeper has no spendable BCH to pay the fee');
+  const feeUtxos = selectFeeUtxos(await provider.getUtxosForLockingBytecode(feeAddress));
 
   const builder = buildPaySalaryTransaction({
     provider,
@@ -65,7 +64,7 @@ async function main(): Promise<void> {
     vault: deployed.vault,
     treasuryUtxo,
     nftUtxo,
-    feeUtxos: [feeUtxos[0]!],
+    feeUtxos,
     feeSigner: keeper,
     feeChangeAddress: feeAddress,
     remitConfig: { sssPkh, phicPkh, hdmfPkh, birPkh },

@@ -4,7 +4,24 @@ import { commitmentFromHex, commitmentToHex, encodeCommitment } from '@domain/pa
 import { EMPLOYMENT_STATUS_ACTIVE } from '@domain/payroll/types'
 
 import type { AmendResult, EmployeeRecord } from '../chain/gateway'
-import { chainGateway } from '../chain/mock-chain-gateway'
+// Amendments go through the ACTIVE gateway; issuance cannot.
+//
+// This file used to import the mock gateway directly, so on a chipnet build
+// reads came from the chain while writes went to memory — the screen reported
+// amendments that had not happened.
+//
+// `issue` is the exception, and not because it is unfinished. Minting a new
+// employment NFT needs the category's minting baton, and that baton was
+// DESTROYED in the same transaction that created the records
+// (scripts/esahod/02-enrol-employees.ts). That is the forgery protection: a
+// covenant comparing a token category can distinguish a category, never an
+// individual record, so the only durable answer is to make new records
+// impossible to mint. Issuance therefore exists on the demo chain only, and
+// the screen says so rather than offering a button that cannot work.
+import { activeGateway } from '../chain/active-gateway'
+import { chainGateway as demoGateway } from '../chain/mock-chain-gateway'
+import { useChainMode } from '../chain/active-gateway'
+import type { AmendAction } from '../chain/gateway'
 import { errorMessage, useChainState } from '../chain/use-chain'
 import { CommitmentHex } from '../components/CommitmentHex'
 import { EmployeeAvatar } from '../components/EmployeeAvatar'
@@ -22,6 +39,7 @@ import { useProofView } from '../view/proof-view'
 export default function HrPage() {
   const state = useChainState()
   const [lastAmend, setLastAmend] = useState<AmendResult | null>(null)
+  const chainMode = useChainMode()
   const [error, setError] = useState<string | null>(null)
   const [issued, setIssued] = useState<string | null>(null)
   const proofView = useProofView()
@@ -31,11 +49,11 @@ export default function HrPage() {
 
   const applyAmend = async (
     employeeNo: number,
-    action: Parameters<typeof chainGateway.amend>[1],
+    action: AmendAction,
   ): Promise<void> => {
     setError(null)
     try {
-      setLastAmend(await chainGateway.amend(employeeNo, action))
+      setLastAmend(await activeGateway().amend(employeeNo, action))
     } catch (thrown) {
       setError(errorMessage(thrown))
     }
@@ -56,6 +74,25 @@ export default function HrPage() {
       </PageHeader>
 
       <ErrorNote message={error} />
+
+      {/*
+        On a live chain, issuance is not available — and the reason is a
+        feature. Saying it here, next to the button that does it, is better
+        than letting someone issue a record and wonder why it never appears on
+        chipnet.
+      */}
+      {chainMode.kind === 'chipnet' ? (
+        <div className="alert alert-info d-flex align-items-start" role="note">
+          <i className="ti ti-shield-lock me-2 mt-1"></i>
+          <span className="fs-13">
+            <strong>Issuance writes to the demo chain, not to chipnet.</strong> The minting baton
+            for this employment category was destroyed in the same transaction that created the
+            records, so no new employment NFT can ever be minted — that is what stops an employer
+            forging one. Enrolment happens once, at genesis. Amendments and payroll below do go to
+            chipnet.
+          </span>
+        </div>
+      ) : null}
 
       {issued ? (
         <div className="alert alert-success d-flex align-items-center" role="alert">
@@ -183,7 +220,7 @@ function IssueForm(props: { nextEmployeeNo: number; onIssued: (message: string) 
     const allowance = parsePesoInput(allowanceText)
     const tax = parsePesoInput(taxText)
     if (basic === null || allowance === null || tax === null) return
-    const record = chainGateway.issue({
+    const record = demoGateway.issue({
       name: [firstName.trim(), middleName.trim(), lastName.trim()].filter(Boolean).join(' '),
       position,
       payeePkh: commitmentFromHex(pkhText.toLowerCase()),
@@ -479,7 +516,7 @@ function IssueReview(props: {
 
 function RosterRow(props: {
   employee: EmployeeRecord
-  onAction: (employeeNo: number, action: Parameters<typeof chainGateway.amend>[1]) => Promise<void>
+  onAction: (employeeNo: number, action: AmendAction) => Promise<void>
 }) {
   const { employee, onAction } = props
   const c = employee.commitment

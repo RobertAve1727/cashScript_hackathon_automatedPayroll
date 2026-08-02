@@ -4,7 +4,7 @@ import {
   workedBasisPoints,
   workedSeconds,
 } from '@domain/attendance/time-record'
-import { computeScheduledDeductions } from '@domain/index'
+import { computeScheduledDeductions, DAILY } from '@domain/index'
 import { useChainState } from '../chain/use-chain'
 import {
   attendanceBackend,
@@ -91,11 +91,21 @@ export default function TimeClockPage() {
           monthlyBasic: record.commitment.monthlyBasic,
           monthlyAllowance: record.commitment.monthlyAllowance,
           monthlyTax: monthlyTaxOf(record.commitment),
-          // The employee's own cadence, not a hardcoded daily one. This screen
-          // used to compute a day's accrual against DAILY regardless of how the
-          // employee is actually paid, so a semi-monthly employee saw a figure
-          // no run would ever produce.
-          schedule,
+          // DAILY, deliberately, and NOT the employee's pay cadence.
+          //
+          // `periodsWorked` is a fraction of one PAY PERIOD; `workedBasisPoints`
+          // is a fraction of one eight-hour WORKING DAY. Those two are the same
+          // number only when a period is a day. Passing the employee's own
+          // cadence here — which this file briefly did — scores one worked day
+          // as one whole pay period, so a semi-monthly employee is shown half a
+          // month's pay under the heading "Today's earnings": ₱18,500 where the
+          // day is worth ₱1,681.81, an eleven-fold overstatement.
+          //
+          // The question this card answers is "what did I earn today", and a
+          // day's wage does not depend on how often it is handed over. The
+          // cadence belongs in the sentence below the figure, not in the
+          // arithmetic above it.
+          schedule: DAILY,
           periodOfMonth: 1,
           periodsWorked: Math.min(workedBp / 10_000, 1),
         })
@@ -187,8 +197,8 @@ export default function TimeClockPage() {
                     <p className="fs-12 mb-1 text-muted">Gross earned</p>
                     <h5 className="mb-0">{formatPeso(earnedToday.gross)}</h5>
                     <p className="fs-12 mb-0 text-muted">
-                      1 of {schedule.periodsPerMonth}{' '}
-                      {schedule.cadence === 'daily' ? 'working days' : 'pay periods'} this month
+                      1 of {DAILY.periodsPerMonth} working days — you are paid{' '}
+                      {schedule.cadence}
                     </p>
                   </div>
                   <div className="col-sm-4">

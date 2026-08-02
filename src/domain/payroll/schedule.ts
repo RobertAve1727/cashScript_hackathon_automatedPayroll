@@ -241,9 +241,9 @@ export function rescaleEndPeriod(
  *
  * The commitment's `taxPerPeriod` is denominated in whatever period the record
  * was written for. Change the cadence without rewriting it and the covenant
- * keeps sending that same figure every period — at daily cadence that is
- * twenty-two times the month's withholding tax handed to the BIR, drawn from
- * the employee's pay.
+ * keeps sending that same figure every period — twenty-two times a month at
+ * daily cadence instead of twice, so ELEVEN times the month's withholding tax
+ * reaches the BIR, drawn from the employee's pay.
  *
  * Deliberately NOT applied automatically anywhere. Rewriting the commitment is
  * an HR-signed amendment on chain, and this function exists so a screen can
