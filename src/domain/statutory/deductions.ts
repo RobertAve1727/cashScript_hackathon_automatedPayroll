@@ -47,6 +47,19 @@ import {
  */
 
 export interface DeductionInput {
+  /**
+   * Pay periods in a month — 2 semi-monthly, 4 weekly, 22 daily.
+   *
+   * The same value the treasury covenant was DEPLOYED with, because it is a
+   * constructor argument there and therefore part of the contract's address.
+   * The two must agree: this engine computes the amounts the transaction
+   * builder puts in the outputs, and the covenant recomputes them and rejects
+   * the transaction if a single centavo differs.
+   *
+   * Defaults to 2, so every existing caller keeps the semi-monthly behaviour
+   * this file had before it learned other cadences.
+   */
+  readonly periodsPerMonth?: bigint;
   /** Monthly basic salary, centavos. */
   readonly monthlyBasic: bigint;
   /** Monthly allowances treated as part of compensation, centavos. */
@@ -121,9 +134,13 @@ export function computeDeductions(input: DeductionInput): Deductions {
 
   // ── SSS ── bracketed MSC, half of the monthly contribution per cut-off.
   const sssMsc = monthlySalaryCredit(monthlyCompensation);
-  const sssEE = (sssMsc * SSS_RATE_EMPLOYEE_PERCENT) / 200n;
-  const sssER = (sssMsc * SSS_RATE_EMPLOYER_PERCENT) / 200n;
-  const sssEC = (sssMsc >= SSS_EC_THRESHOLD_MSC ? SSS_EC_MONTHLY_HIGH : SSS_EC_MONTHLY_LOW) / 2n;
+  const periodsPerMonth = input.periodsPerMonth ?? 2n;
+  const periodDivisor = 100n * periodsPerMonth;
+
+  const sssEE = (sssMsc * SSS_RATE_EMPLOYEE_PERCENT) / periodDivisor;
+  const sssER = (sssMsc * SSS_RATE_EMPLOYER_PERCENT) / periodDivisor;
+  const sssEC =
+    (sssMsc >= SSS_EC_THRESHOLD_MSC ? SSS_EC_MONTHLY_HIGH : SSS_EC_MONTHLY_LOW) / periodsPerMonth;
   const sssTotal = sssEE + sssER + sssEC;
 
   // ── PhilHealth ── basic salary only, with both a floor and a ceiling.
@@ -132,7 +149,7 @@ export function computeDeductions(input: DeductionInput): Deductions {
   if (phicBase > PHIC_INCOME_CEILING) phicBase = PHIC_INCOME_CEILING;
   // Half the 5% premium is the employee's, and half of that falls due per
   // cut-off: rate/1000 * 1/2 (share) * 1/2 (period) == rate/4000.
-  const phicEE = (phicBase * PHIC_RATE_TOTAL_PERMILLE) / 4_000n;
+  const phicEE = (phicBase * PHIC_RATE_TOTAL_PERMILLE) / (2_000n * periodsPerMonth);
   const phicER = phicEE;
   const phicTotal = phicEE + phicER;
 
@@ -144,12 +161,12 @@ export function computeDeductions(input: DeductionInput): Deductions {
     monthlyCompensation <= HDMF_LOW_RATE_THRESHOLD
       ? HDMF_RATE_EMPLOYEE_LOW_PERCENT
       : HDMF_RATE_EMPLOYEE_HIGH_PERCENT;
-  const hdmfEE = (hdmfBase * hdmfEmployeeRate) / 200n;
-  const hdmfER = (hdmfBase * HDMF_RATE_EMPLOYER_PERCENT) / 200n;
+  const hdmfEE = (hdmfBase * hdmfEmployeeRate) / periodDivisor;
+  const hdmfER = (hdmfBase * HDMF_RATE_EMPLOYER_PERCENT) / periodDivisor;
   const hdmfTotal = hdmfEE + hdmfER;
 
   // ── Net and the treasury draw ──
-  const gross = monthlyCompensation / 2n;
+  const gross = monthlyCompensation / periodsPerMonth;
   const tax = taxPerPeriod;
   const net = gross - sssEE - phicEE - hdmfEE - tax;
   const totalDrawn = net + sssTotal + phicTotal + hdmfTotal + tax;

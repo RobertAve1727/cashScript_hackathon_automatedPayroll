@@ -33,9 +33,9 @@ export { createNetworkProvider, toCashScriptNetwork } from './blockchain/network
 export {
   ContractArtifactMissingError,
   defaultArtifactDirectory,
-  loadPayrollTreasuryArtifact,
-  type PayrollTreasuryArtifact,
-} from './blockchain/payroll-treasury-artifact.js';
+  loadSimpleBchTreasuryArtifact,
+  type SimpleBchTreasuryArtifact,
+} from './blockchain/simple-bch-treasury-artifact.js';
 export {
   createPayrollTreasuryContract,
   resolveTreasuryKeys,

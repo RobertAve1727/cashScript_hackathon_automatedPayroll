@@ -61,10 +61,113 @@ export {
   OUTPUT_PAGIBIG,
   OUTPUT_PHILHEALTH,
   OUTPUT_SSS,
+  fixtureFullName,
   outputLayoutFor,
   type FixtureEmployee,
   type OutputLayout,
 } from './payroll/types.js';
+export {
+  commitmentForEmployee,
+  commitmentFromHex,
+  commitmentToHex,
+  decodeCommitment,
+  encodeCommitment,
+  MAX_ENCODABLE_PERIOD,
+  type EmploymentCommitment,
+  type EmploymentStatusCode,
+  type EmploymentTerms,
+} from './payroll/commitment.js';
+
+// Pay cadence. The covenant takes `periodsPerMonth` as a constructor argument,
+// so it settles any of these — one treasury per cadence, because that argument
+// is part of the contract's address.
+export {
+  DAILY,
+  MONTHLY_UNLAWFUL,
+  SECONDS_PER_JULIAN_YEAR,
+  SELECTABLE_SCHEDULES,
+  SEMI_MONTHLY,
+  WEEKLY,
+  WORKING_DAYS_PER_MONTH,
+  isLawfulCadence,
+  isPayableNow,
+  isPayrollCadence,
+  payableAt,
+  periodOfMonth,
+  periodSecondsFor,
+  periodsPerYear,
+  rescaleEndPeriod,
+  rescaleTaxPerPeriod,
+  scheduleFor,
+  type PayrollCadence,
+  type PayrollSchedule,
+} from './payroll/schedule.js';
+// Night differential, rest-day and holiday premiums. Every premium in the
+// Labor Code is a multiplier on the hourly rate and they COMPOUND, so an
+// overtime night hour on a regular holiday is 200% x 130% x 110% = 286%.
+export {
+  DAY_CLASSIFICATIONS,
+  DAY_LABELS,
+  NIGHT_ENDS_HOUR,
+  NIGHT_FACTOR_BP,
+  NIGHT_STARTS_HOUR,
+  ORDINARY_BP,
+  PHT_OFFSET_MINUTES,
+  hourFactorBasisPoints,
+  isNightHour,
+  nightMinutesIn,
+  premiumPay,
+  segmentsPay,
+  unworkedDayPay,
+  type DayClassification,
+  type HourKind,
+  type WorkSegment,
+} from './attendance/premiums.js';
+export {
+  allocateMonthlyAmount,
+  allocateMonthlyAmountAcrossMonth,
+} from './statutory/allocation.js';
+export {
+  computeScheduledDeductions,
+  monthlyObligations,
+  scheduleMonth,
+  type MonthlyObligations,
+  type ScheduledDeductionInput,
+  type ScheduledDeductions,
+} from './statutory/scheduled-deductions.js';
+
+// Attendance: the input a payroll covenant cannot supply for itself.
+export {
+  ANCHOR_BYTES,
+  ANCHOR_MAGIC,
+  ANCHOR_VERSION,
+  PUNCH_KIND_CODE,
+  STANDARD_WORKDAY_SECONDS,
+  WORKDAY_BASIS_POINTS,
+  decodePunch,
+  encodePunch,
+  isSettled,
+  totalBasisPoints,
+  workedBasisPoints,
+  workedFraction,
+  workedSeconds,
+  type Punch,
+  type PunchKind,
+  type TimeRecord,
+} from './attendance/time-record.js';
+export {
+  MAX_OVERTIME_MINUTES_PER_DAY,
+  MINUTES_PER_HOUR,
+  OVERTIME_PREMIUM_PERCENT,
+  approvedOvertimeMinutes,
+  approvedOvertimePay,
+  assertRequestable,
+  decide,
+  hourlyRate,
+  overtimePay,
+  type OvertimeRequest,
+  type OvertimeStatus,
+} from './attendance/overtime.js';
 
 export type { EmployeeRepository } from './repositories/employee-repository.js';
 export type { PayrollRunRepository } from './repositories/payroll-run-repository.js';

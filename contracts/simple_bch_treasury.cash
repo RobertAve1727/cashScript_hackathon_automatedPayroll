@@ -1,0 +1,66 @@
+pragma cashscript ^0.13.0;
+
+/**
+ * SimpleBchTreasury — the pre-CashTokens payroll treasury.
+ *
+ * TRANSITIONAL. This is the plain-BCH treasury the application adapter
+ * (`src/infrastructure/blockchain/`) still drives while the statutory covenant
+ * in `payroll_treasury.cash` is being wired into a CashTokens transaction
+ * builder. It pays satoshis to a list of addresses with an operator signature
+ * and a rate limit; it knows nothing about SSS, PhilHealth, Pag-IBIG or the
+ * BIR, and it is NOT the contract the project is about. Delete it once the
+ * covenant path is live end to end.
+ *
+ * The company funds this contract and the payroll operator settles each pay
+ * period from it. Two spending paths:
+ *
+ *  - disburse: the operator signs a payroll run, but the coin being spent must
+ *    be at least `payoutInterval` blocks old. Because each run pays itself
+ *    change back into the treasury, consecutive runs are chained through that
+ *    change output and are therefore rate limited by consensus, not by the
+ *    client building the transaction. A leaked operator key cannot drain the
+ *    treasury by replaying runs back to back.
+ *
+ *  - reclaim: the treasurer — a separate, colder key — can always sweep the
+ *    treasury, with no timing restriction. This is the escape hatch for a lost
+ *    operator key or a wound-down payroll.
+ *
+ * SECURITY NOTE, read before deploying with real money:
+ *
+ * `this.age` is a *relative* timelock (OP_CHECKSEQUENCEVERIFY) and applies per
+ * UTXO, not per contract address. If the treasury is funded with five separate
+ * coins, five disbursements can be made in the same block — one per coin. Fund
+ * it as a single coin and let the change output carry the balance forward, and
+ * the rate limit holds.
+ *
+ * Enforcing "at most one payroll run per period" for the *address* rather than
+ * the coin needs a covenant: introspect `tx.outputs[n].lockingBytecode` to
+ * require that the change returns to this same contract, so no run can split
+ * the treasury. That is the natural next extension of this contract.
+ */
+contract SimpleBchTreasury(
+    pubkey operatorPk,
+    bytes20 treasurerPkh,
+    int payoutInterval
+) {
+    /**
+     * Settle a payroll run.
+     *
+     * @param operatorSig signature of the payroll operator
+     */
+    function disburse(sig operatorSig) {
+        require(checkSig(operatorSig, operatorPk), "payroll: invalid operator signature");
+        require(this.age >= payoutInterval, "payroll: pay period has not elapsed");
+    }
+
+    /**
+     * Sweep the treasury with the treasurer key. Always available.
+     *
+     * @param treasurerPk  public key matching the treasurer hash
+     * @param treasurerSig signature of the treasurer
+     */
+    function reclaim(pubkey treasurerPk, sig treasurerSig) {
+        require(hash160(treasurerPk) == treasurerPkh, "payroll: not the treasurer");
+        require(checkSig(treasurerSig, treasurerPk), "payroll: invalid treasurer signature");
+    }
+}

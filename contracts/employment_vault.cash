@@ -1,0 +1,139 @@
+pragma cashscript ^0.13.0;
+
+/**
+ * eSahod — EmploymentVault
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * Where an employee's employment record lives between paydays.
+ *
+ * The record itself is a mutable CashToken NFT whose 40-byte commitment holds
+ * the payee, the salary, the tax figure, the period counter and the employment
+ * status. This contract is the address that NFT sits at, and it exists to
+ * answer exactly two questions:
+ *
+ *   payroll()  — may this record be spent by a payroll run?  (anyone may ask)
+ *   amend()    — may this record be edited?                  (HR only)
+ *
+ * There is no third path. The NFT cannot be burned, cannot be edited by the
+ * payroll officer, the employee, or whoever happens to broadcast the payroll
+ * transaction — and can only leave this address inside an HR-signed
+ * amendment, which is the migration path between funding cycles (see
+ * `amend()` below).
+ *
+ * WHY A SEPARATE CONTRACT AT ALL. The treasury already refuses to pay unless
+ * input 1 is a genuine Employment NFT. The reverse guarantee is the one that
+ * needs its own contract: without it, the NFT would unlock for ANY transaction,
+ * and an attacker could pair it with a look-alike contract of their own — one
+ * that advances the period counter and pays nobody. Do that twenty-four times
+ * and the employee's whole year is marked paid on chain while their wallet
+ * stays empty. `payroll()` is the clause that makes that impossible, and it is
+ * why the counter can be trusted as a payment record.
+ */
+contract EmploymentVault(
+    bytes35 treasuryLock,   // the P2SH32 lockingBytecode of this company's PayrollTreasury
+    bytes20 hrPkh           // HR / people-operations key (make this a multisig in production)
+) {
+    /**
+     * The payroll path. Deliberately almost empty — it delegates every
+     * question about amounts, recipients and the period counter to the
+     * treasury covenant spending alongside it, and asserts only the two facts
+     * the treasury cannot assert about itself.
+     *
+     * 1. Input 0 IS this company's payroll treasury. `treasuryLock` is the
+     *    treasury's full 35-byte P2SH32 locking bytecode
+     *    (OP_HASH256 <32-byte script hash> OP_EQUAL), so this is an identity
+     *    check against a specific deployed contract with specific remittance
+     *    addresses and a specific period schedule — not merely "some contract".
+     *    A look-alike that advances the counter without paying does not hash to
+     *    the same value and cannot satisfy it.
+     *
+     * 2. This record is input 1. The treasury pins itself to input 0 and
+     *    constrains the NFT at input 1 completely: same vault, same category,
+     *    same commitment except the period. It says NOTHING about an input 2.
+     *    Without this line, a payroll run that legitimately pays employee A
+     *    could carry employee B's record along as a third input — unlocked by
+     *    this very function, unconstrained by anything, free to be redirected
+     *    to the attacker or rewritten with a larger salary. Pinning the index
+     *    means one payroll transaction moves exactly one employment record,
+     *    and that record is the one the treasury is enforcing.
+     */
+    function payroll() {
+        require(this.activeInputIndex == 1, "the employment record must be input 1");
+        require(tx.inputs[0].lockingBytecode == treasuryLock,
+                "input 0 is not this company's payroll treasury");
+    }
+
+    /**
+     * The HR path: salary adjustments, promotions, a change of payee wallet,
+     * suspension, separation, a corrected tax figure, an extended contract —
+     * and, once a year, the migration of every record into the next funding
+     * cycle's vault.
+     *
+     * Everything about the record is HR's to change EXCEPT the two things that
+     * would let a stolen HR key steal money rather than merely make a mess.
+     *
+     * All checks are written against `this.activeInputIndex`, with each output
+     * aligned to the input of the same index. That is what lets one
+     * transaction amend a thousand employees at once — an across-the-board
+     * increase, a batch of new contract end dates — while every record is still
+     * checked individually, because every input runs its own copy of this
+     * script against its own index.
+     */
+    function amend(sig hrSig, pubkey hrPk) {
+        require(hash160(hrPk) == hrPkh, "not the HR key");
+        require(checkSig(hrSig, hrPk), "invalid HR signature");
+
+        // GUARANTEE 1 — the record survives as this token, wherever it lives.
+        //
+        // The output at this index must carry the NFT onward with its FULL
+        // tokenCategory. Comparing the full tokenCategory (not just the
+        // 32-byte category) carries the capability byte with it, so the record
+        // stays MUTABLE. Downgrading it to immutable would freeze the counter
+        // and strand the employee's pay forever; upgrading it to minting would
+        // let the holder forge additional employment records of a category the
+        // treasury already trusts.
+        //
+        // The record's lockingBytecode is deliberately NOT pinned. The
+        // operating model deploys a FRESH treasury every funding cycle, and a
+        // fresh treasury means a fresh vault — this contract is parameterised
+        // by `treasuryLock`, so next year's vault is a different address. If
+        // an amendment had to return the record to THIS vault forever, every
+        // employment record would be permanently stranded the moment the next
+        // cycle was funded. An HR-signed amendment may therefore relocate the
+        // record to a new locking bytecode: that signed move IS the annual
+        // migration path. It hands HR no new power — HR can already lawfully
+        // zero a salary, suspend, or separate through this same path, so
+        // relocation is strictly weaker than what a rogue HR key could do
+        // anyway, and every relocation is signed and visible on chain.
+        require(tx.outputs[this.activeInputIndex].tokenCategory
+                    == tx.inputs[this.activeInputIndex].tokenCategory,
+                "an amended record must keep its category and mutable capability");
+
+        // GUARANTEE 2 — nextPeriod never moves backwards.
+        //
+        // This is the clause that survives a compromised HR key. The period
+        // counter is the only proof that period N was already paid; rewinding
+        // it re-opens every period between the new value and the old one, and
+        // each of those can then be claimed against the treasury by anyone,
+        // legitimately, through the ordinary payroll path. A rewind of 24 is a
+        // second year's salary drained with no invalid transaction anywhere in
+        // sight.
+        //
+        // HR can still suspend, separate, or set endPeriod to a past period to
+        // stop payments — all of which are the employer's lawful prerogative
+        // and all of which are visible on chain. What HR cannot do is make an
+        // already-paid period payable again.
+        //
+        // Field layout (see src/domain/payroll/types.ts):
+        //   [0:32] payee + salary + allowance + tax   [32:34] nextPeriod
+        //   [34:40] endPeriod + status + employeeNo
+        // `.split(34)[0]` takes everything up to the end of nextPeriod, and
+        // `.split(32)[1]` keeps its two bytes. Reading the field this way also
+        // means a commitment shorter than 34 bytes fails the split outright, so
+        // a truncated record cannot slip through by having no period at all.
+        int oldPeriod = int(tx.inputs[this.activeInputIndex].nftCommitment.split(34)[0].split(32)[1]);
+        int newPeriod = int(tx.outputs[this.activeInputIndex].nftCommitment.split(34)[0].split(32)[1]);
+
+        require(newPeriod >= oldPeriod, "nextPeriod must never move backwards");
+    }
+}

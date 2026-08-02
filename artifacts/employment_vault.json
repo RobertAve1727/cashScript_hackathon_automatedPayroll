@@ -1,0 +1,82 @@
+{
+  "contractName": "EmploymentVault",
+  "constructorInputs": [
+    {
+      "name": "treasuryLock",
+      "type": "bytes35"
+    },
+    {
+      "name": "hrPkh",
+      "type": "bytes20"
+    }
+  ],
+  "abi": [
+    {
+      "name": "payroll",
+      "inputs": []
+    },
+    {
+      "name": "amend",
+      "inputs": [
+        {
+          "name": "hrSig",
+          "type": "sig"
+        },
+        {
+          "name": "hrPk",
+          "type": "pubkey"
+        }
+      ]
+    }
+  ],
+  "bytecode": "OP_2 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_INPUTINDEX OP_1 OP_NUMEQUALVERIFY OP_0 OP_UTXOBYTECODE OP_EQUAL OP_NIP OP_NIP OP_ELSE OP_ROT OP_1 OP_NUMEQUALVERIFY OP_3 OP_PICK OP_HASH160 OP_ROT OP_EQUALVERIFY OP_SWAP OP_ROT OP_CHECKSIGVERIFY OP_INPUTINDEX OP_OUTPUTTOKENCATEGORY OP_INPUTINDEX OP_UTXOTOKENCATEGORY OP_EQUALVERIFY OP_INPUTINDEX OP_UTXOTOKENCOMMITMENT 22 OP_SPLIT OP_DROP 20 OP_SPLIT OP_NIP OP_BIN2NUM OP_INPUTINDEX OP_OUTPUTTOKENCOMMITMENT 22 OP_SPLIT OP_DROP 20 OP_SPLIT OP_NIP OP_BIN2NUM OP_LESSTHANOREQUAL OP_NIP OP_ENDIF",
+  "source": "pragma cashscript ^0.13.0;\n\n/**\n * eSahod — EmploymentVault\n * ═══════════════════════════════════════════════════════════════════════════\n *\n * Where an employee's employment record lives between paydays.\n *\n * The record itself is a mutable CashToken NFT whose 40-byte commitment holds\n * the payee, the salary, the tax figure, the period counter and the employment\n * status. This contract is the address that NFT sits at, and it exists to\n * answer exactly two questions:\n *\n *   payroll()  — may this record be spent by a payroll run?  (anyone may ask)\n *   amend()    — may this record be edited?                  (HR only)\n *\n * There is no third path. The NFT cannot be burned, cannot be edited by the\n * payroll officer, the employee, or whoever happens to broadcast the payroll\n * transaction — and can only leave this address inside an HR-signed\n * amendment, which is the migration path between funding cycles (see\n * `amend()` below).\n *\n * WHY A SEPARATE CONTRACT AT ALL. The treasury already refuses to pay unless\n * input 1 is a genuine Employment NFT. The reverse guarantee is the one that\n * needs its own contract: without it, the NFT would unlock for ANY transaction,\n * and an attacker could pair it with a look-alike contract of their own — one\n * that advances the period counter and pays nobody. Do that twenty-four times\n * and the employee's whole year is marked paid on chain while their wallet\n * stays empty. `payroll()` is the clause that makes that impossible, and it is\n * why the counter can be trusted as a payment record.\n */\ncontract EmploymentVault(\n    bytes35 treasuryLock,   // the P2SH32 lockingBytecode of this company's PayrollTreasury\n    bytes20 hrPkh           // HR / people-operations key (make this a multisig in production)\n) {\n    /**\n     * The payroll path. Deliberately almost empty — it delegates every\n     * question about amounts, recipients and the period counter to the\n     * treasury covenant spending alongside it, and asserts only the two facts\n     * the treasury cannot assert about itself.\n     *\n     * 1. Input 0 IS this company's payroll treasury. `treasuryLock` is the\n     *    treasury's full 35-byte P2SH32 locking bytecode\n     *    (OP_HASH256 <32-byte script hash> OP_EQUAL), so this is an identity\n     *    check against a specific deployed contract with specific remittance\n     *    addresses and a specific period schedule — not merely \"some contract\".\n     *    A look-alike that advances the counter without paying does not hash to\n     *    the same value and cannot satisfy it.\n     *\n     * 2. This record is input 1. The treasury pins itself to input 0 and\n     *    constrains the NFT at input 1 completely: same vault, same category,\n     *    same commitment except the period. It says NOTHING about an input 2.\n     *    Without this line, a payroll run that legitimately pays employee A\n     *    could carry employee B's record along as a third input — unlocked by\n     *    this very function, unconstrained by anything, free to be redirected\n     *    to the attacker or rewritten with a larger salary. Pinning the index\n     *    means one payroll transaction moves exactly one employment record,\n     *    and that record is the one the treasury is enforcing.\n     */\n    function payroll() {\n        require(this.activeInputIndex == 1, \"the employment record must be input 1\");\n        require(tx.inputs[0].lockingBytecode == treasuryLock,\n                \"input 0 is not this company's payroll treasury\");\n    }\n\n    /**\n     * The HR path: salary adjustments, promotions, a change of payee wallet,\n     * suspension, separation, a corrected tax figure, an extended contract —\n     * and, once a year, the migration of every record into the next funding\n     * cycle's vault.\n     *\n     * Everything about the record is HR's to change EXCEPT the two things that\n     * would let a stolen HR key steal money rather than merely make a mess.\n     *\n     * All checks are written against `this.activeInputIndex`, with each output\n     * aligned to the input of the same index. That is what lets one\n     * transaction amend a thousand employees at once — an across-the-board\n     * increase, a batch of new contract end dates — while every record is still\n     * checked individually, because every input runs its own copy of this\n     * script against its own index.\n     */\n    function amend(sig hrSig, pubkey hrPk) {\n        require(hash160(hrPk) == hrPkh, \"not the HR key\");\n        require(checkSig(hrSig, hrPk), \"invalid HR signature\");\n\n        // GUARANTEE 1 — the record survives as this token, wherever it lives.\n        //\n        // The output at this index must carry the NFT onward with its FULL\n        // tokenCategory. Comparing the full tokenCategory (not just the\n        // 32-byte category) carries the capability byte with it, so the record\n        // stays MUTABLE. Downgrading it to immutable would freeze the counter\n        // and strand the employee's pay forever; upgrading it to minting would\n        // let the holder forge additional employment records of a category the\n        // treasury already trusts.\n        //\n        // The record's lockingBytecode is deliberately NOT pinned. The\n        // operating model deploys a FRESH treasury every funding cycle, and a\n        // fresh treasury means a fresh vault — this contract is parameterised\n        // by `treasuryLock`, so next year's vault is a different address. If\n        // an amendment had to return the record to THIS vault forever, every\n        // employment record would be permanently stranded the moment the next\n        // cycle was funded. An HR-signed amendment may therefore relocate the\n        // record to a new locking bytecode: that signed move IS the annual\n        // migration path. It hands HR no new power — HR can already lawfully\n        // zero a salary, suspend, or separate through this same path, so\n        // relocation is strictly weaker than what a rogue HR key could do\n        // anyway, and every relocation is signed and visible on chain.\n        require(tx.outputs[this.activeInputIndex].tokenCategory\n                    == tx.inputs[this.activeInputIndex].tokenCategory,\n                \"an amended record must keep its category and mutable capability\");\n\n        // GUARANTEE 2 — nextPeriod never moves backwards.\n        //\n        // This is the clause that survives a compromised HR key. The period\n        // counter is the only proof that period N was already paid; rewinding\n        // it re-opens every period between the new value and the old one, and\n        // each of those can then be claimed against the treasury by anyone,\n        // legitimately, through the ordinary payroll path. A rewind of 24 is a\n        // second year's salary drained with no invalid transaction anywhere in\n        // sight.\n        //\n        // HR can still suspend, separate, or set endPeriod to a past period to\n        // stop payments — all of which are the employer's lawful prerogative\n        // and all of which are visible on chain. What HR cannot do is make an\n        // already-paid period payable again.\n        //\n        // Field layout (see src/domain/payroll/types.ts):\n        //   [0:32] payee + salary + allowance + tax   [32:34] nextPeriod\n        //   [34:40] endPeriod + status + employeeNo\n        // `.split(34)[0]` takes everything up to the end of nextPeriod, and\n        // `.split(32)[1]` keeps its two bytes. Reading the field this way also\n        // means a commitment shorter than 34 bytes fails the split outright, so\n        // a truncated record cannot slip through by having no period at all.\n        int oldPeriod = int(tx.inputs[this.activeInputIndex].nftCommitment.split(34)[0].split(32)[1]);\n        int newPeriod = int(tx.outputs[this.activeInputIndex].nftCommitment.split(34)[0].split(32)[1]);\n\n        require(newPeriod >= oldPeriod, \"nextPeriod must never move backwards\");\n    }\n}\n",
+  "fingerprint": "074eb80523f558abfd56ef5a0830bb16ec487e24bce2943e31c36b95751eebf3",
+  "debug": {
+    "bytecode": "5279009c63c0519d00c7877777677b519d5379a97b887c7badc0d1c0ce88c0cf01227f7501207f7781c0d201227f7501207f7781a17768",
+    "sourceMap": "60:4:64:5;;;;;61:16:61:37;:41::42;:8::85:1;62:26:62:27:0;:16::44:1;:8:63:66;60:23:64:5;;:4;82::138::0;;;83:24:83:28;;:16::29:1;:33::38:0;:8::58:1;84:25:84:30:0;:32::36;:8::63:1;108:27:108:48:0;:16::63:1;109:33:109:54:0;:23::69:1;108:8:110:83;134:38:134:59:0;:28::74:1;:81::83:0;:28::84:1;:::87;:94::96:0;:28::97:1;:::100;:24::101;135:39:135:60:0;:28::75:1;:82::84:0;:28::85:1;:::88;:95::97:0;:28::98:1;:::101;:24::102;137:8:137:80;82:43:138:5;32:0:139:1",
+    "logs": [],
+    "requires": [
+      {
+        "ip": 9,
+        "line": 61,
+        "message": "the employment record must be input 1"
+      },
+      {
+        "ip": 13,
+        "line": 62,
+        "message": "input 0 is not this company's payroll treasury"
+      },
+      {
+        "ip": 23,
+        "line": 83,
+        "message": "not the HR key"
+      },
+      {
+        "ip": 26,
+        "line": 84,
+        "message": "invalid HR signature"
+      },
+      {
+        "ip": 31,
+        "line": 108,
+        "message": "an amended record must keep its category and mutable capability"
+      },
+      {
+        "ip": 51,
+        "line": 137,
+        "message": "nextPeriod must never move backwards"
+      }
+    ],
+    "sourceTags": "11:12:sc;49:49:sc"
+  },
+  "compiler": {
+    "name": "cashc",
+    "version": "0.13.2",
+    "options": {
+      "enforceFunctionParameterTypes": true,
+      "enforceLocktimeGuard": true
+    }
+  },
+  "updatedAt": "2026-08-02T02:40:03.993Z"
+}

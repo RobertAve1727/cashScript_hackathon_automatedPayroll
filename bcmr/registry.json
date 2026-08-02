@@ -1,0 +1,140 @@
+{
+  "$schema": "https://cashtokens.org/bcmr-v2.schema.json",
+  "version": { "major": 1, "minor": 0, "patch": 0 },
+  "latestRevision": "2026-08-01T00:00:00.000Z",
+  "license": "CC0-1.0",
+  "defaultChain": "00000000040ba9641ba98a37b2e5ceead38e4e2930ac8f145c8094f94c708727",
+  "registryIdentity": {
+    "name": "eSahod Payroll",
+    "description": "Metadata for one company's eSahod payroll deployment: the ePHP payroll unit and the employment records that authorise its release.\n\neSahod pays a Philippine private-sector employee and remits their SSS, PhilHealth, Pag-IBIG and BIR obligations in a single Bitcoin Cash transaction, enforced by a covenant rather than by a payroll clerk. This registry only names the two token categories that transaction moves; the rules themselves live in contracts/payroll_treasury.cash.",
+    "uris": {
+      "icon": "https://esahod.example/bcmr/esahod-registry.svg",
+      "web": "https://esahod.example/",
+      "registry": "https://esahod.example/.well-known/bitcoin-cash-metadata-registry.json"
+    }
+  },
+  "tags": {
+    "payroll": {
+      "name": "Payroll",
+      "description": "Used to pay wages and the statutory contributions that attach to them."
+    },
+    "philippines": {
+      "name": "Philippines",
+      "description": "Denominated in, or governed by, Philippine private-sector payroll law - SSS, PhilHealth, Pag-IBIG and BIR withholding."
+    },
+    "covenant": {
+      "name": "Covenant-Controlled",
+      "description": "Movement is constrained by an on-chain covenant, not by the discretion of a key holder."
+    }
+  },
+  "identities": {
+    "REPLACE_WITH_PESO_CATEGORY_FROM_DEPLOYMENT_JSON": {
+      "2026-08-01T00:00:00.000Z": {
+        "name": "eSahod Peso",
+        "description": "Company payroll money for one eSahod funding cycle. One unit is one centavo, so 100 units display as 1.00.\n\nePHP is a plain fungible CashToken minted once per funding cycle and held by the PayrollTreasury covenant. It is not a stablecoin and carries no redemption guarantee from anyone: it is an accounting unit for a single employer's payroll run, and it is only worth what that employer's treasury is willing to honour. Its whole purpose is that the covenant can pin an exact centavo figure to an exact statutory recipient - net pay to the employee, SSS, PhilHealth and Pag-IBIG contributions to their agencies, and withholding tax to the BIR - in one transaction that nobody, including the payroll officer, can redirect.\n\nThe supply is fixed at genesis. There is no minting NFT for this category, so no further ePHP can ever be created under it.",
+        "token": {
+          "category": "REPLACE_WITH_PESO_CATEGORY_FROM_DEPLOYMENT_JSON",
+          "symbol": "EPHP",
+          "decimals": 2
+        },
+        "tags": ["payroll", "philippines", "covenant"],
+        "uris": {
+          "icon": "https://esahod.example/bcmr/ephp.svg",
+          "web": "https://esahod.example/ephp",
+          "registry": "https://esahod.example/.well-known/bitcoin-cash-metadata-registry.json"
+        }
+      }
+    },
+    "REPLACE_WITH_EMPLOYMENT_CATEGORY_FROM_DEPLOYMENT_JSON": {
+      "2026-08-01T00:00:00.000Z": {
+        "name": "eSahod Employment",
+        "description": "One Philippine private-sector employment contract, as a mutable CashToken NFT. Its 40-byte commitment is the employment record itself.\n\nHolding one of these NFTs is not a claim on money - it is the authorisation that lets the PayrollTreasury covenant release exactly one semi-monthly disbursement, to exactly the person named inside the commitment, for exactly the period the counter is pointing at. The record normally lives in the EmploymentVault covenant between paydays; the treasury advances its period counter by one every time it pays, which is what makes a second payment for the same period impossible.\n\nThe minting baton for this category is destroyed in the same transaction that enrols the roster, so the set of employment records is fixed at enrolment and no further record of this category can ever be forged.",
+        "token": {
+          "category": "REPLACE_WITH_EMPLOYMENT_CATEGORY_FROM_DEPLOYMENT_JSON",
+          "symbol": "ESAHOD-EMP",
+          "nfts": {
+            "description": "One employee's employment contract, on chain. The 40-byte commitment carries the payee, the pay figures, the period counter and the status flag.",
+            "fields": {
+              "payeePkh": {
+                "name": "Employee PKH",
+                "description": "The employee's P2PKH hash. It lives inside the commitment rather than in a contract parameter, which is what makes triggering payroll safe to delegate.",
+                "encoding": { "type": "hex" }
+              },
+              "monthlyBasic": {
+                "name": "Monthly Basic",
+                "description": "Monthly basic salary. The base for the PhilHealth premium; half of it is earned each semi-monthly period.",
+                "encoding": { "type": "number", "decimals": 2, "unit": "PHP", "aggregate": "add" }
+              },
+              "monthlyAllowance": {
+                "name": "Monthly Allowance",
+                "description": "Monthly allowances forming part of compensation. Added to basic salary for the SSS and Pag-IBIG contribution bases.",
+                "encoding": { "type": "number", "decimals": 2, "unit": "PHP", "aggregate": "add" }
+              },
+              "taxPerPeriod": {
+                "name": "Tax Per Period",
+                "description": "Withholding tax for one semi-monthly period. HR computes it off chain; the covenant then enforces this exact figure to the exact BIR address.",
+                "encoding": { "type": "number", "decimals": 2, "unit": "PHP", "aggregate": "add" }
+              },
+              "nextPeriod": {
+                "name": "Next Period",
+                "description": "Monotonic counter, and the anti-double-payment mechanism. The covenant pays only this period, then writes the counter plus one back into the same two bytes.",
+                "encoding": { "type": "number" }
+              },
+              "endPeriod": {
+                "name": "End Period",
+                "description": "Last payable semi-monthly period. Fixed-term and project-based contracts expire on their own once the counter passes it.",
+                "encoding": { "type": "number" }
+              },
+              "status": {
+                "name": "Active",
+                "description": "Employment status. True (0x01) is active; false (0x00) is suspended or separated. The covenant refuses to pay anything but an active record.",
+                "encoding": { "type": "boolean" }
+              },
+              "employeeNo": {
+                "name": "Employee No.",
+                "description": "The company's own employee number, carried on chain for the audit trail.",
+                "encoding": { "type": "number" }
+              }
+            },
+            "parse": {
+              "bytecode": "00cf8292766b6301147f7c6b547f7c816b547f7c816b547f7c816b527f7c816b527f7c816b517f7c6b816b677568",
+              "types": {
+                "": {
+                  "name": "Minting Baton",
+                  "description": "The zero-length commitment of the employment category's minting NFT - the authority to create employment records at all.\n\nThis baton exists only between 01-deploy.ts and 02-enrol-employees.ts, and 02 destroys it in the same transaction that enrols the roster. While it is alive it is treasury-equivalent: whoever holds it can mint an employment record naming themselves. If a wallet is showing you this NFT, the enrolment ceremony has not finished."
+                },
+                "01": {
+                  "name": "Employment Record",
+                  "description": "A 40-byte employment commitment: payeePkh (20 bytes), monthlyBasic (4), monthlyAllowance (4), taxPerPeriod (4), nextPeriod (2), endPeriod (2), status (1) and employeeNo (3), each little-endian, filling the CashTokens commitment limit exactly.\n\nThe type identifier is 0x01 because the parse bytecode pushes a boolean for 'the commitment is not empty' - an employment record rather than the minting baton.",
+                  "fields": [
+                    "payeePkh",
+                    "monthlyBasic",
+                    "monthlyAllowance",
+                    "taxPerPeriod",
+                    "nextPeriod",
+                    "endPeriod",
+                    "status",
+                    "employeeNo"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "tags": ["payroll", "philippines", "covenant"],
+        "uris": {
+          "icon": "https://esahod.example/bcmr/employment.svg",
+          "web": "https://esahod.example/employment",
+          "registry": "https://esahod.example/.well-known/bitcoin-cash-metadata-registry.json"
+        }
+      }
+    }
+  },
+  "extensions": {
+    "esahod": {
+      "commitmentLayout": "payeePkh:0+20, monthlyBasic:20+4, monthlyAllowance:24+4, taxPerPeriod:28+4, nextPeriod:32+2, endPeriod:34+2, status:36+1, employeeNo:37+3 - all little-endian, signed, per src/domain/payroll/types.ts",
+      "parseBytecodeAsm": "OP_0 OP_UTXOTOKENCOMMITMENT OP_SIZE OP_0NOTEQUAL OP_DUP OP_TOALTSTACK OP_IF <20> OP_SPLIT OP_SWAP OP_TOALTSTACK OP_4 OP_SPLIT OP_SWAP OP_BIN2NUM OP_TOALTSTACK OP_4 OP_SPLIT OP_SWAP OP_BIN2NUM OP_TOALTSTACK OP_4 OP_SPLIT OP_SWAP OP_BIN2NUM OP_TOALTSTACK OP_2 OP_SPLIT OP_SWAP OP_BIN2NUM OP_TOALTSTACK OP_2 OP_SPLIT OP_SWAP OP_BIN2NUM OP_TOALTSTACK OP_1 OP_SPLIT OP_SWAP OP_TOALTSTACK OP_BIN2NUM OP_TOALTSTACK OP_ELSE OP_DROP OP_ENDIF",
+      "publisher": "scripts/esahod/05-publish-bcmr.ts"
+    }
+  }
+}

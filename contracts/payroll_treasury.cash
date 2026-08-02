@@ -1,58 +1,439 @@
 pragma cashscript ^0.13.0;
 
 /**
- * PayrollTreasury
+ * eSahod — PayrollTreasury  (PRIVATE SECTOR)
+ * ═══════════════════════════════════════════════════════════════════════════
  *
- * The company funds this contract and the payroll operator settles each pay
- * period from it. Two spending paths:
+ * One company's payroll funding, held on chain for one funding cycle.
  *
- *  - disburse: the operator signs a payroll run, but the coin being spent must
- *    be at least `payoutInterval` blocks old. Because each run pays itself
- *    change back into the treasury, consecutive runs are chained through that
- *    change output and are therefore rate limited by consensus, not by the
- *    client building the transaction. A leaked operator key cannot drain the
- *    treasury by replaying runs back to back.
+ * The contract holds ePHP fungible CashTokens (1 unit = 1 centavo) and will
+ * release them in exactly one shape: a lawful semi-monthly payroll
+ * disbursement for one employee.
  *
- *  - reclaim: the treasurer — a separate, colder key — can always sweep the
- *    treasury, with no timing restriction. This is the escape hatch for a lost
- *    operator key or a wound-down payroll.
+ *   net pay     -> the employee named inside the Employment NFT commitment
+ *   SSS         -> 15% of the bracketed Monthly Salary Credit, / 2, + EC premium
+ *   PhilHealth  ->  5% of basic salary, / 2   (floor P10,000, ceiling P100,000)
+ *   Pag-IBIG    ->  4% of capped compensation, / 2   (MFS cap P10,000)
+ *   BIR         -> the withholding tax HR stored in the NFT
  *
- * SECURITY NOTE, read before deploying with real money:
+ * WHY THIS EXISTS AT ALL. In a normal payroll the deduction and the remittance
+ * are two different events months apart: money is withheld from the worker in
+ * January and reaches SSS in April, if it reaches SSS at all. Non-remittance of
+ * withheld contributions is the single most common wage complaint in the
+ * Philippines, and it is invisible to the worker until they file a claim.
+ * Here they are the SAME EVENT — one transaction, atomic. If the employee is
+ * paid, the funds have already moved. There is no window in which an employer
+ * holds withheld money.
  *
- * `this.age` is a *relative* timelock (OP_CHECKSEQUENCEVERIFY) and applies per
- * UTXO, not per contract address. If the treasury is funded with five separate
- * coins, five disbursements can be made in the same block — one per coin. Fund
- * it as a single coin and let the change output carry the balance forward, and
- * the rate limit holds.
+ * WHO CAN RUN IT: anybody. `paySalary` requires NO signature. The employee, the
+ * payroll officer, or an anonymous keeper bot can broadcast it and the result
+ * is byte-for-byte identical, because every recipient and every amount is
+ * derived from the Employment NFT and the statutory formulas below. Nobody —
+ * not the officer, not HR, not the developers — can redirect one centavo.
+ * That is what makes it safe to give the trigger away, and giving the trigger
+ * away is what makes the payroll unstoppable: an employer cannot withhold pay
+ * by simply not pressing the button.
  *
- * Enforcing "at most one payroll run per period" for the *address* rather than
- * the coin needs a covenant: introspect `tx.outputs[n].lockingBytecode` to
- * require that the change returns to this same contract, so no run can split
- * the treasury. That is the natural next extension of this contract.
+ * ── THE TRUST ROOT, STATED HONESTLY ───────────────────────────────────────
+ * This covenant trusts the Employment NFT CATEGORY, and nothing above it.
+ * Whoever holds the category's minting NFT — HR — can mint a record carrying
+ * ANY payeePkh, so a compromised HR minting key can direct funds to a forged
+ * employment record through a perfectly lawful-looking payroll run. That is
+ * the deliberate design boundary, not an oversight. Pinning the vault's
+ * address here would not close it: a forged record minted INTO the vault is
+ * paid exactly like a genuine one, because this covenant cannot tell a
+ * genuine record of the trusted category from a forged one — see the second
+ * CONTRAST case in `tests/infrastructure/esahod/genesis.test.ts`, which
+ * drains 60% of a treasury that way. (Pinning is also awkward in practice:
+ * the vault must be deployed knowing `treasuryLock`, so the treasury cannot
+ * be deployed knowing `vaultLock`.) What the covenant DOES guarantee is that
+ * every record of the trusted category is paid exactly by the statutes below
+ * — the mint is the only doorway, and hardening it is operational, not
+ * script-level: `src/infrastructure/blockchain/esahod/genesis.ts` mints every
+ * employment record straight into the vault and destroys the category's
+ * minting authority in the SAME transaction, so after genesis nobody — not
+ * HR, not a thief who steals HR's key — can ever mint another record of this
+ * category again. See that file's comment for why "keep the minting NFT
+ * around for future hires" (an earlier draft of this project's tooling did
+ * exactly that) reopens this hole, and `tests/infrastructure/esahod/
+ * genesis.test.ts` for the forged-mint attack shown working when the baton
+ * survives, and failing to even exist once it doesn't. If new hires must be
+ * enrollable after genesis, a baton covenant must constrain WHAT is minted
+ * (a commitment pre-committed by a separate key, or co-signed by the
+ * employee) — constraining only where the NFT lands is not enough, as that
+ * same test file demonstrates.
+ *
+ * ── PRIVATE SECTOR, NOT GOVERNMENT ────────────────────────────────────────
+ * SSS (RA 11199) replaces GSIS. The difference is structural, not cosmetic:
+ * GSIS is a flat percentage of actual compensation with no ceiling, while SSS
+ * is computed on a BRACKETED Monthly Salary Credit in P500 steps, floored at
+ * P5,000 and capped at P35,000, plus a flat employer-only EC premium. Two
+ * employees earning P16,100 and P16,300 contribute the same amount. That
+ * bracket step is reproduced below in the same expression form as
+ * `src/domain/statutory/deductions.ts`, because the off-chain calculator and
+ * this covenant must agree to the centavo or the transaction is rejected.
+ *
+ * Statutory basis:
+ *   SSS         RA 11199   15% of MSC (5% EE / 10% ER), MSC P5,000–P35,000,
+ *                          EC premium P10/month, P30/month at MSC >= P15,000
+ *   PhilHealth  RA 11223   5% of basic, split evenly, floor P10,000, ceiling P100,000
+ *   Pag-IBIG    RA 9679    2% EE (1% at or below P1,500) + 2% ER, MFS cap P10,000
+ *   BIR         RA 10963   withholding computed off chain by HR — see below
+ *
+ * WHERE THE CHAIN STOPS. This covenant does NOT compute withholding tax, and
+ * that is deliberate. Real withholding is annualised, depends on substituted
+ * filing, year-to-date compensation and the taxability of individual
+ * allowances, and minimum-wage earners are exempt outright under RA 9504.
+ * None of that is verifiable from a 40-byte commitment. HR computes the number
+ * and writes it into the employment record; the chain enforces that EXACT
+ * number reaches EXACTLY the BIR address. Enforce what is verifiable, refuse
+ * to pretend about the rest.
+ *
+ * ── NOTES FOR THE TRANSACTION BUILDER ─────────────────────────────────────
+ * 1. `tx.time` compiles to OP_CHECKLOCKTIMEVERIFY, which BCH consensus only
+ *    enforces when the spending input carries a non-final sequence number. The
+ *    builder must set nLockTime AND a sequence number below 0xffffffff, or the
+ *    payday floor is not enforced at all.
+ * 2. This script is 533 bytes and 284 opcodes. It therefore requires the May
+ *    2025 VM-limits upgrade, which replaced the old 201-opcode ceiling and the
+ *    520-byte stack-item cap with density-based limits (items up to 10,000
+ *    bytes). The two satoshi-floor checks are what pushed it past the historic
+ *    520-byte push limit; keeping the treasury's BCH un-strippable is worth
+ *    more than staying quaint under a rule the network no longer enforces.
  */
 contract PayrollTreasury(
-    pubkey operatorPk,
-    bytes20 treasurerPkh,
-    int payoutInterval
+    bytes32 employmentCategory,  // CashToken category of this company's Employment NFTs — the trust root
+    bytes32 pesoCategory,        // CashToken category of ePHP (1 unit = 1 centavo)
+    bytes20 remitConfigHash,     // hash160(sssPkh + phicPkh + hdmfPkh + birPkh)
+    int     genesisTime,         // unix seconds: earliest claimable moment of period 0
+    int     periodSeconds,       // 1314873 = one semi-monthly period (31556952 / 24)
+    int     periodsPerMonth,     // 2 semi-monthly, 4 weekly, 22 daily — the divisor for every monthly figure
+    bytes20 payrollOfficerPkh,   // company payroll officer / treasurer (make this a multisig in production)
+    int     lapseTime            // unix seconds: this funding cycle ends
 ) {
     /**
-     * Settle a payroll run.
+     * Pay one employee for one semi-monthly period. Permissionless.
      *
-     * @param operatorSig signature of the payroll operator
+     * The four remittance hashes are passed as arguments and checked against a
+     * single stored hash160. Storing one hash instead of four addresses keeps
+     * the contract parameters small while still letting the company publish its
+     * remittance configuration and let anyone verify it — and it means changing
+     * a remittance address changes the treasury address, which is exactly the
+     * blast radius you want for a change of that severity.
+     *
+     * Required transaction shape when tax > 0:
+     *   in  0  this treasury             out 0  net pay -> employee
+     *   in  1  Employment NFT (mutable)  out 1  SSS
+     *   in  2+ fee UTXOs (optional)      out 2  PhilHealth
+     *                                    out 3  Pag-IBIG
+     *                                    out 4  BIR
+     *                                    out 5  Employment NFT, period + 1
+     *                                    out 6  treasury change
+     *                                    out 7+ BCH change (optional)
+     *
+     * When tax == 0 the BIR output is OMITTED — a zero-amount CashToken output
+     * is invalid under consensus — and everything after it shifts up one slot:
+     *   in  0  this treasury             out 0  net pay -> employee
+     *   in  1  Employment NFT (mutable)  out 1  SSS
+     *   in  2+ fee UTXOs (optional)      out 2  PhilHealth
+     *                                    out 3  Pag-IBIG
+     *                                    out 4  Employment NFT, period + 1
+     *                                    out 5  treasury change
+     *                                    out 6+ BCH change (optional)
      */
-    function disburse(sig operatorSig) {
-        require(checkSig(operatorSig, operatorPk), "payroll: invalid operator signature");
-        require(this.age >= payoutInterval, "payroll: pay period has not elapsed");
+    function paySalary(
+        bytes20 sssPkh,
+        bytes20 phicPkh,
+        bytes20 hdmfPkh,
+        bytes20 birPkh
+    ) {
+        // ── 0. Pin the transaction shape ─────────────────────────────────
+        // Every input runs its own copy of this script. Pinning the treasury to
+        // input 0 is what stops a second treasury coin from riding along in the
+        // same transaction: input 2 spending this same contract would have to
+        // satisfy `activeInputIndex == 0` too, and cannot. One payroll
+        // transaction therefore draws from exactly one treasury coin, and the
+        // change arithmetic at the bottom accounts for all of it.
+        require(this.activeInputIndex == 0, "treasury must be input 0");
+
+        // There is deliberately no "input 0 must hold ePHP" check here: the
+        // change clause at the bottom already makes anything else unspendable
+        // through this path. A plain BCH coin has a token amount of zero, so the
+        // required change would be negative; a coin of some other category would
+        // have to be matched centavo for centavo out of the spender's own ePHP.
+        // Redundant checks are not free — they are script bytes.
+
+        // THE TRUST ROOT. `employmentCategory + 0x01` means "an NFT of this
+        // company's category, with the MUTABLE capability". The category is
+        // fixed at deployment and can only ever have been minted by whoever
+        // controlled the genesis UTXO, so a forged employment record is
+        // impossible: an attacker can mint NFTs all day, but not of this
+        // category. The mutable capability is what allows the commitment to be
+        // rewritten with the advanced period — an immutable NFT could not
+        // advance, and a minting NFT could spawn new employment records.
+        require(tx.inputs[1].tokenCategory == employmentCategory + 0x01,
+                "input 1 must be a mutable Employment NFT of this company");
+
+        require(hash160(sssPkh + phicPkh + hdmfPkh + birPkh) == remitConfigHash,
+                "remittance configuration does not match");
+
+        // ── 1. Read the employment record out of the 40-byte commitment ──
+        //  [0:20] payeePkh   [20:24] monthlyBasic  [24:28] monthlyAllowance
+        //  [28:32] taxPerPeriod  [32:34] nextPeriod  [34:36] endPeriod
+        //  [36:37] status  [37:40] employeeNo
+        //
+        // The payee lives INSIDE the commitment rather than in the contract
+        // parameters. That is the single design decision that makes triggering
+        // payroll safe to hand to a stranger: the trigger carries no discretion.
+        bytes payeePkh, bytes c1 = tx.inputs[1].nftCommitment.split(20);
+        bytes basicB,   bytes c2 = c1.split(4);
+        bytes allowB,   bytes c3 = c2.split(4);
+        bytes taxB,     bytes c4 = c3.split(4);
+        bytes periodB,  bytes c5 = c4.split(2);
+        bytes endB,     bytes c6 = c5.split(2);
+        bytes statusB,  bytes employeeNoB = c6.split(1);
+
+        int monthlyBasic     = int(basicB);
+        int monthlyAllowance = int(allowB);   // allowances forming part of compensation
+        int tax              = int(taxB);
+        int period           = int(periodB);
+
+        // Suspension and separation are a status flag, not a key rotation:
+        // flipping this byte to 0 stops payroll for this employee immediately
+        // and permanently, without touching anyone else's record.
+        require(int(statusB) == 1, "employee is not in active status");
+
+        // Fixed-term and project-based contracts expire on their own, with no
+        // action required from anyone. This is the clause that stops a payroll
+        // covenant from paying a separated employee forever.
+        require(period <= int(endB), "employment record has ended");
+
+        // ── 2. The payday floor ──────────────────────────────────────────
+        // OP_CHECKLOCKTIMEVERIFY. The contract guarantees "never earlier than
+        // payday". The employee's own ability to broadcast guarantees "never
+        // much later" — they do not need the employer's cooperation to be paid,
+        // which is the whole point. The counter in the commitment is what makes
+        // this safe: period N can only be claimed once, because claiming it
+        // rewrites the record to period N+1.
+        require(tx.time >= genesisTime + period * periodSeconds,
+                "payday for this period has not arrived");
+
+        // ── 3. Statutory arithmetic — every value in centavos ────────────
+        //
+        // READ THIS BEFORE "SIMPLIFYING" ANYTHING BELOW. Integer division
+        // truncates. `x * 5 / 200` is NOT `x * 5 / 100 / 2` — the second
+        // truncates twice and drifts by a centavo, and a one-centavo drift
+        // makes the transaction unspendable with an error message that tells
+        // you nothing. Every expression here is character-for-character the
+        // same as `src/domain/statutory/deductions.ts`. Change them together
+        // or not at all.
+        int monthlyCompensation = monthlyBasic + monthlyAllowance;
+
+        // ── SSS (RA 11199) ── The Monthly Salary Credit is a BRACKET, not a
+        // salary. SSS publishes a table in P500 steps: everything from
+        // P5,250 to P5,749.99 maps to an MSC of P5,500. Adding half a step
+        // before truncating is round-half-up, which reproduces the published
+        // table exactly in three operations.
+        int msc = ((monthlyCompensation + 25000) / 50000) * 50000;
+        if (msc < 500000)  { msc = 500000;  }   // MSC floor    P5,000
+        if (msc > 3500000) { msc = 3500000; }   // MSC ceiling  P35,000 — the contribution caps here
+
+        // 15% of the MSC, split 5% employee / 10% employer. A fraction of the
+        // monthly amount falls due each period: rate/100 / periodsPerMonth,
+        // written as one divisor so it truncates exactly once. At
+        // periodsPerMonth = 2 this is `msc * 5 / 200` — the semi-monthly
+        // expression this contract carried before it learned other cadences,
+        // unchanged to the character.
+        int periodDivisor = 100 * periodsPerMonth;
+        int sssEE = msc * 5  / periodDivisor;
+        int sssER = msc * 10 / periodDivisor;
+
+        // Employees' Compensation premium: employer-only, and a flat peso
+        // amount rather than a rate — P10/month below MSC P15,000, P30/month at
+        // or above it. Divided across the periods in the month, so 500 or 1500
+        // centavos at the semi-monthly cadence.
+        int sssEC = 1000 / periodsPerMonth;
+        if (msc >= 1500000) { sssEC = 3000 / periodsPerMonth; }
+
+        // One output covers all three. SSS receives the employee share, the
+        // employer share and the EC premium in a single payment, which is how
+        // it is actually remitted on the R-5.
+        int sssTotal = sssEE + sssER + sssEC;
+
+        // ── PhilHealth (RA 11223) ── BASIC salary only. Allowances are
+        // excluded by law, which is why this base is computed separately from
+        // the SSS one instead of reusing it.
+        int phicBase = monthlyBasic;
+        if (phicBase < 1000000)  { phicBase = 1000000;  }   // income floor   P10,000
+        if (phicBase > 10000000) { phicBase = 10000000; }   // income ceiling P100,000
+
+        // 5% total premium: 50/1000 * 1/2 (employee share) * 1/periodsPerMonth,
+        // in one division so it truncates exactly once. At periodsPerMonth = 2
+        // the divisor is 4000, as it was.
+        int phicEE = phicBase * 50 / (2000 * periodsPerMonth);
+        int phicTotal = phicEE * 2;   // employer matches the employee peso for peso
+
+        // ── Pag-IBIG (RA 9679, HDMF Circular 460) ── total compensation,
+        // capped at the Maximum Fund Salary. The cap binds for almost every
+        // employee, which is why both fixtures land on the same P100 figure.
+        int hdmfBase = monthlyCompensation;
+        if (hdmfBase > 1000000) { hdmfBase = 1000000; }   // MFS P10,000
+
+        // The employee rate — and ONLY the employee rate — drops to 1% at or
+        // below P1,500 of monthly compensation. The employer always pays 2%.
+        // Note the rate test uses uncapped compensation while the base is
+        // capped; they are different quantities and swapping them is a
+        // classic payroll bug.
+        int hdmfEeRate = 2;
+        if (monthlyCompensation <= 150000) { hdmfEeRate = 1; }
+
+        int hdmfEE = hdmfBase * hdmfEeRate / periodDivisor;
+        int hdmfER = hdmfBase * 2 / periodDivisor;
+        int hdmfTotal = hdmfEE + hdmfER;
+
+        // ── Net pay ── gross for the period is monthly compensation divided by
+        // the number of periods in a month;
+        // the employee's own three shares and the withholding tax come off it.
+        // The employer shares never touch this line — they are additional cost,
+        // not a deduction, and conflating the two is how workers get shorted.
+        int gross = monthlyCompensation / periodsPerMonth;
+        int net = gross - sssEE - phicEE - hdmfEE - tax;
+
+        // A non-positive net means the record is misconfigured (a tax figure
+        // larger than the pay, say). Fail loudly rather than mint an invalid
+        // zero-value token output further down.
+        require(net > 0, "computed net pay is not positive");
+
+        // ── 4. Enforce the disbursement, output by output ────────────────
+        // For each output all three of lockingBytecode, tokenCategory and
+        // tokenAmount are pinned. Pinning only two is the classic covenant
+        // hole: the right amount of the WRONG TOKEN, or the right token to the
+        // wrong address, would both still satisfy a partial check.
+        require(tx.outputs[0].lockingBytecode == new LockingBytecodeP2PKH(unsafe_bytes20(payeePkh)),
+                "output 0 must pay the employee named in the record");
+        require(tx.outputs[0].tokenCategory == pesoCategory, "output 0 must be ePHP");
+        require(tx.outputs[0].tokenAmount == net, "output 0 must be exactly net pay");
+
+        require(tx.outputs[1].lockingBytecode == new LockingBytecodeP2PKH(sssPkh),
+                "output 1 must pay SSS");
+        require(tx.outputs[1].tokenCategory == pesoCategory, "output 1 must be ePHP");
+        require(tx.outputs[1].tokenAmount == sssTotal, "output 1 must be the exact SSS contribution");
+
+        require(tx.outputs[2].lockingBytecode == new LockingBytecodeP2PKH(phicPkh),
+                "output 2 must pay PhilHealth");
+        require(tx.outputs[2].tokenCategory == pesoCategory, "output 2 must be ePHP");
+        require(tx.outputs[2].tokenAmount == phicTotal, "output 2 must be the exact PhilHealth premium");
+
+        require(tx.outputs[3].lockingBytecode == new LockingBytecodeP2PKH(hdmfPkh),
+                "output 3 must pay Pag-IBIG");
+        require(tx.outputs[3].tokenCategory == pesoCategory, "output 3 must be ePHP");
+        require(tx.outputs[3].tokenAmount == hdmfTotal, "output 3 must be the exact Pag-IBIG contribution");
+
+        // ── The BIR output disappears when there is no tax ────────────────
+        // A CashToken output carrying zero fungible units is INVALID under
+        // consensus, so a zero-tax payroll cannot simply send 0 to the BIR —
+        // the output must not exist, and everything after it shifts up by one.
+        // Minimum-wage earners are exempt from income tax under RA 9504, so in
+        // a Philippine private payroll this is the COMMON case, not the edge
+        // case. Getting it wrong makes the covenant unusable for exactly the
+        // workers it most needs to protect.
+        int nftOut    = 5;
+        int changeOut = 6;
+        if (tax > 0) {
+            require(tx.outputs[4].lockingBytecode == new LockingBytecodeP2PKH(birPkh),
+                    "output 4 must pay the BIR");
+            require(tx.outputs[4].tokenCategory == pesoCategory, "output 4 must be ePHP");
+            require(tx.outputs[4].tokenAmount == tax, "output 4 must be the exact withholding tax");
+        } else {
+            nftOut    = 4;
+            changeOut = 5;
+        }
+
+        // ── 5. Return the employment record, period advanced by one ──────
+        // The commitment is rebuilt from the ORIGINAL byte slices with only
+        // nextPeriod replaced. Not "checked for equality field by field" —
+        // rebuilt, so there is no field anyone forgot to check. A payroll run
+        // therefore cannot change a salary, a payee, an end date or an
+        // employment status, no matter who broadcasts it.
+        //
+        // Sending the NFT back to the same lockingBytecode keeps it in the
+        // EmploymentVault, whose `payroll()` path in turn requires input 0 to
+        // be THIS treasury. Neither contract can be paired with a look-alike:
+        // the treasury insists on a real employment record, and the vault
+        // insists on a real treasury.
+        require(tx.outputs[nftOut].lockingBytecode == tx.inputs[1].lockingBytecode,
+                "the employment record must return to its vault");
+        require(tx.outputs[nftOut].tokenCategory == tx.inputs[1].tokenCategory,
+                "the employment record must keep its category and mutable capability");
+        require(tx.outputs[nftOut].nftCommitment ==
+                    payeePkh + basicB + allowB + taxB
+                    + toPaddedBytes(period + 1, 2)
+                    + endB + statusB + employeeNoB,
+                "only nextPeriod may change, and only by +1");
+
+        // THE SATOSHI FLOOR, part one. Token checks alone say nothing about
+        // the BCH riding under them. Without this line the anonymous
+        // broadcaster this design deliberately invites could return the NFT
+        // with a dust-minimum 546 sats and pocket the difference in their own
+        // change output — a lawful payroll run doubling as a slow drain of the
+        // record's carrying value. The NFT's satoshis must ride along
+        // undiminished; the separate fee input (in 2+) pays for dust and fees.
+        require(tx.outputs[nftOut].value >= tx.inputs[1].value,
+                "the employment record must keep its satoshis");
+
+        // ── 6. Re-create the treasury with the exact remainder ───────────
+        // THE ANTI-LEAK CLAUSE. Every centavo of the input that was not
+        // disbursed above must come back to this same contract address. There
+        // is no "and the rest goes wherever" branch: an extra peso output for
+        // anybody else would have to be funded from the transaction's own
+        // inputs, never from the payroll funding.
+        //
+        // Note this cannot produce a zero-value change output — the treasury
+        // may not be drained to exactly zero, since a zero-amount token output
+        // is invalid. The builder leaves a remainder; the final sweep uses
+        // `sweepLapsedNca`.
+        require(tx.outputs[changeOut].lockingBytecode == tx.inputs[0].lockingBytecode,
+                "the remaining payroll funding must return to the treasury");
+        require(tx.outputs[changeOut].tokenCategory == pesoCategory,
+                "treasury change must be ePHP");
+        require(tx.outputs[changeOut].tokenAmount ==
+                    tx.inputs[0].tokenAmount - net - sssTotal - phicTotal - hdmfTotal - tax,
+                "treasury change must be the exact remainder");
+
+        // THE SATOSHI FLOOR, part two — the big one. The clauses above pin
+        // every output's lockingBytecode, tokenCategory and tokenAmount, but a
+        // token covenant that never mentions `.value` has still left its BCH
+        // unguarded: the broadcaster could rebuild this change output with the
+        // exact ePHP remainder sitting on 1,000 sats and strip the treasury
+        // coin's entire BCH balance into their own output. Requiring the
+        // change to carry at least the input's satoshis closes that: the
+        // treasury's BCH rides along undiminished, and the fee input funds
+        // the dust on every disbursement output plus the mining fee.
+        require(tx.outputs[changeOut].value >= tx.inputs[0].value,
+                "the treasury must keep its satoshis");
     }
 
     /**
-     * Sweep the treasury with the treasurer key. Always available.
+     * Close out the funding cycle.
      *
-     * @param treasurerPk  public key matching the treasurer hash
-     * @param treasurerSig signature of the treasurer
+     * Payroll funding is allocated per cycle. After `lapseTime` the payroll
+     * officer returns whatever is left to the company's operating account and a
+     * fresh treasury is deployed for the next cycle. Before `lapseTime` this
+     * path is dead: the officer cannot recall funds an employee is still owed,
+     * which is the difference between an escrow and a promise.
+     *
+     * `tx.inputs.length == 1` is not a formality. Employment NFTs live in a
+     * contract that unlocks whenever input 0 is this treasury, so without this
+     * clause a lapsed-cycle sweep could drag employment records into the same
+     * transaction and rewrite them — handing the officer a power that belongs
+     * exclusively to HR. Restricting the sweep to a lone input closes that
+     * completely, at the cost of needing one transaction per treasury coin and
+     * paying its fee from the coin's own satoshis.
      */
-    function reclaim(pubkey treasurerPk, sig treasurerSig) {
-        require(hash160(treasurerPk) == treasurerPkh, "payroll: not the treasurer");
-        require(checkSig(treasurerSig, treasurerPk), "payroll: invalid treasurer signature");
+    function sweepLapsedNca(sig officerSig, pubkey officerPk) {
+        require(hash160(officerPk) == payrollOfficerPkh, "not the payroll officer");
+        require(checkSig(officerSig, officerPk), "invalid payroll officer signature");
+        require(tx.time >= lapseTime, "this payroll funding cycle has not lapsed yet");
+        require(tx.inputs.length == 1, "a lapse sweep may not co-spend any other input");
     }
 }

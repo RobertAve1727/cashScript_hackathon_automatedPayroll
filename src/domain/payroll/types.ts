@@ -112,9 +112,21 @@ export function outputLayoutFor(taxPerPeriod: bigint): OutputLayout {
 
 export interface FixtureEmployee extends DeductionInput {
   readonly employeeNo: number;
-  readonly name: string;
+  /**
+   * Name in parts. One string cannot be taken apart again reliably — "Jun
+   * Dela Cruz" has a two-word surname — and every statutory form asks for the
+   * parts separately, so they are stored that way and joined for display.
+   */
+  readonly firstName: string;
+  readonly middleName?: string;
+  readonly lastName: string;
   readonly position: string;
   readonly note: string;
+}
+
+/** "Maria Cruz Santos" — the parts joined, for anywhere a label is wanted. */
+export function fixtureFullName(employee: FixtureEmployee): string {
+  return [employee.firstName, employee.middleName, employee.lastName].filter(Boolean).join(' ');
 }
 
 /**
@@ -126,7 +138,9 @@ export interface FixtureEmployee extends DeductionInput {
  */
 export const FIXTURE_ANALYST: FixtureEmployee = {
   employeeNo: 1001,
-  name: 'Maria Santos',
+  firstName: 'Maria',
+  middleName: 'Cruz',
+  lastName: 'Santos',
   position: 'Systems Analyst',
   monthlyBasic: 3_500_000n, // ₱35,000.00
   monthlyAllowance: 200_000n, // ₱2,000.00
@@ -136,7 +150,8 @@ export const FIXTURE_ANALYST: FixtureEmployee = {
 
 export const FIXTURE_ENTRY_LEVEL: FixtureEmployee = {
   employeeNo: 1002,
-  name: 'Jun Dela Cruz',
+  firstName: 'Jun',
+  lastName: 'Dela Cruz',
   position: 'Warehouse Associate',
   monthlyBasic: 1_600_000n, // ₱16,000.00
   monthlyAllowance: 0n,

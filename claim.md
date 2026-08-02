@@ -1,0 +1,1 @@
+npx tsx scripts/esahod/00-generate-keys.ts

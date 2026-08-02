@@ -1,0 +1,14 @@
+{
+  "employmentCategory": "8f6b96a033b14392beaed59a0d601c66f6694d7376f917d90c468e7b59e621ff",
+  "pesoCategory": "412ba936e7924d708fff27987503f7c0f26b8b04dd8aff3340c022f37095824d",
+  "remitConfigHash": "64df470a22c6825d8d109579b32c0957c1fbf133",
+  "genesisTime": "1779064746",
+  "periodSeconds": "1314873",
+  "lapseTime": "1817175111",
+  "treasuryAddress": "bchtest:pv7hjzqu3aytkrg863szw36fr02v34r8epsl5ny3mgkhm79dls4372x0xet53",
+  "vaultAddress": "bchtest:pvh2vvyte34p02uccc90l37rna000z57vhmwjmkjr25j6seqn7c8gzpxqtv7g",
+  "vaultLockingBytecode": "aa202ea6308bcc6a17ab98c60affc7c39f5ef78a9e65f6e96ed21aa92d43209fb07487",
+  "payrollOfficerPkh": "20c494fb2839c9fbfb422667283cc982cff2870d",
+  "hrPkh": "4b28d3abb5e378ac57e1f1dab34202fc7d457e82",
+  "periodsPerMonth": "2"
+}

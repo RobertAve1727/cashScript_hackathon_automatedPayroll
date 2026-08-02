@@ -3,8 +3,13 @@ import { join, resolve } from 'node:path';
 import type { Artifact } from 'cashscript';
 
 /**
- * The compiled shape of `contracts/payroll_treasury.cash`, stated as literal
+ * The compiled shape of `contracts/simple_bch_treasury.cash`, stated as literal
  * types.
+ *
+ * This is the LEGACY generic plain-BCH treasury that drives the original CLI
+ * demo — NOT the eSahod statutory covenant (`payroll_treasury.cash` /
+ * `artifacts/payroll_treasury.json`), which has a different ABI and needs a
+ * token-aware transaction builder.
  *
  * CashScript infers unlocker signatures from the artifact's type, so declaring
  * the ABI this precisely is what turns `contract.unlock.disburse(sig)` into a
@@ -12,7 +17,7 @@ import type { Artifact } from 'cashscript';
  * matching the artifact and the mismatch surfaces at compile time rather than
  * as a failed broadcast.
  */
-export type PayrollTreasuryArtifact = Artifact & {
+export type SimpleBchTreasuryArtifact = Artifact & {
   constructorInputs: [
     { name: 'operatorPk'; type: 'pubkey' },
     { name: 'treasurerPkh'; type: 'bytes20' },
@@ -41,11 +46,11 @@ export function defaultArtifactDirectory(): string {
   return resolve(import.meta.dirname, '..', '..', '..', 'artifacts');
 }
 
-export function loadPayrollTreasuryArtifact(directory = defaultArtifactDirectory()): PayrollTreasuryArtifact {
-  const path = join(directory, 'payroll_treasury.json');
+export function loadSimpleBchTreasuryArtifact(directory = defaultArtifactDirectory()): SimpleBchTreasuryArtifact {
+  const path = join(directory, 'simple_bch_treasury.json');
 
   try {
-    return JSON.parse(readFileSync(path, 'utf8')) as PayrollTreasuryArtifact;
+    return JSON.parse(readFileSync(path, 'utf8')) as SimpleBchTreasuryArtifact;
   } catch (error) {
     if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT') {
       throw new ContractArtifactMissingError(path);

@@ -2,7 +2,7 @@
   "name": "automated-payroll",
   "version": "0.1.0",
   "private": true,
-  "description": "Automated BCH payroll — clean architecture reference implementation on CashScript",
+  "description": "Automated BCH payroll \u2014 clean architecture reference implementation on CashScript",
   "type": "module",
   "engines": {
     "node": ">=20"
@@ -15,7 +15,12 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "verify": "npm run typecheck && npm run test"
+    "verify": "npm run typecheck && npm run test",
+    "esahod:relay": "tsx scripts/esahod/keeper-relay.ts",
+    "esahod:state": "tsx scripts/esahod/chain-state.ts",
+    "esahod:live": "tsx scripts/esahod/live.ts",
+    "esahod:keys": "tsx scripts/esahod/00-generate-keys.ts",
+    "esahod:daemon": "tsx scripts/esahod/payroll-daemon.ts"
   },
   "dependencies": {
     "@bitauth/libauth": "^3.1.0-next.8",

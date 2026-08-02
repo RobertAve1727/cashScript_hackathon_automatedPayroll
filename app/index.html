@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>eSahod | Automated Payroll on Bitcoin Cash</title>
+    <meta content="eSahod — automated Philippine private-sector payroll on Bitcoin Cash CashTokens." name="description" />
+    <meta content="noindex, nofollow" name="robots" />
+
+    <link href="/build/img/eSahod_logo_small.svg" rel="icon" type="image/svg+xml" />
+
+    <!--
+      Restores the persisted theme before first paint, exactly as the template
+      did. Loading it here rather than as a module avoids a flash of the
+      default light theme, and it owns the theme customiser panel it appends
+      to <body> once.
+    -->
+    <script src="/build/js/theme-script.js"></script>
+
+    <!--
+      The template's own stylesheets, in the template's cascade order —
+      style.css must stay last so its overrides win. This is a deliberate
+      subset: sheets for plugins these three screens never mount (Quill,
+      Swiper, GLightbox, flatpickr, tom-select, gridjs, and the RTL bootstrap
+      build) are not shipped. bootstrap.rtl.min.css alone would flip the
+      entire layout.
+    -->
+    <link href="/build/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="/build/plugins/icons/feather/feather.css" rel="stylesheet" />
+    <link href="/build/plugins/tabler-icons/tabler-icons.min.css" rel="stylesheet" />
+    <link href="/build/plugins/fontawesome/css/fontawesome.min.css" rel="stylesheet" />
+    <link href="/build/plugins/fontawesome/css/all.min.css" rel="stylesheet" />
+    <link href="/build/css/style.css" rel="stylesheet" />
+
+    <!--
+      Hide the template's theme customiser ON THE STANDALONE SCREENS ONLY.
+
+      theme-script.js injects a floating gear (`.toggle-theme`) and an
+      off-canvas panel (`.sidebar-themesettings`) straight into <body>, so
+      they float over the sign-in page too — a layout customiser on a screen
+      that has none of the layout it customises.
+
+      `BareLayout` adds the class while such a screen is mounted and removes it
+      on unmount, so the customiser stays available everywhere inside the app.
+      Scoped rather than global: the earlier version of this rule hid it
+      everywhere, which was more than was asked for.
+
+      In CSS rather than by dropping the script, because theme-script.js also
+      restores the persisted theme before first paint — the reason it loads in
+      <head> at all. Inline so there is no frame in which the gear flashes.
+    -->
+    <style>
+      /* Standalone screens: no chrome, so nothing for the customiser to customise. */
+      .esahod-bare-shell .toggle-theme,
+      .esahod-bare-shell .sidebar-themesettings {
+        display: none !important;
+      }
+
+      /*
+        Remove the layout picker from the customiser.
+
+        It offers thirteen layouts — Horizontal, Two Column, Detached, Menu
+        Stacked, RTL and so on — and this app ships one sidebar. The other
+        twelve were dropped deliberately, because each carried the template's
+        full 283-route menu and navigated to pages that do not exist here.
+
+        Picking one sets `data-layout` on <html> AND persists it to
+        localStorage, so a visitor who clicks "Horizontal" loses the navigation
+        and a reload does not bring it back. That is a trap on a demo machine,
+        not a feature.
+
+        The rest of the panel is honest work and stays: layout width, card
+        style, sidebar colour, theme mode.
+      */
+      .sidebar-themesettings .accordion-item:has(#layoutsetting) {
+        display: none;
+      }
+
+      /* SmartHR's own upsell. Not ours to ship. */
+      .sidebar-themesettings .btn:has(.ti-shopping-cart-plus) {
+        display: none !important;
+      }
+      /* With the upsell gone, Reset takes the full row instead of half of it. */
+      .sidebar-themesettings .col-6:has(.ti-rotate-2),
+      .sidebar-themesettings .col-6:has([class*='ti-rotate']) {
+        width: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
